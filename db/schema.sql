@@ -1,4 +1,5 @@
 -- GEB club schema (Cloudflare D1 / SQLite)
+DROP TABLE IF EXISTS cover_cache;
 DROP TABLE IF EXISTS debt_seeds;
 DROP TABLE IF EXISTS tier_entries;
 DROP TABLE IF EXISTS book_notes;
@@ -103,4 +104,12 @@ CREATE TABLE debt_seeds (
   member_id INTEGER PRIMARY KEY REFERENCES members(id) ON DELETE CASCADE,
   debt REAL NOT NULL,
   note TEXT
+);
+
+CREATE TABLE cover_cache (
+  book_id INTEGER PRIMARY KEY REFERENCES books_read(id) ON DELETE CASCADE,
+  source_url TEXT NOT NULL,       -- cover_url this copy was fetched from
+  content_type TEXT NOT NULL,
+  data BLOB NOT NULL,
+  fetched_at TEXT NOT NULL DEFAULT (datetime('now'))
 );

@@ -20,6 +20,18 @@ function identity(body) {
   return { first_name, discord, name };
 }
 const takenMessage = (err) => (/discord/i.test(String(err?.message)) ? 'that Discord handle is taken' : 'that name is taken');
+// Covers are served from our own /covers/<bookId> route (stored in D1), not the original host.
+// ?v= changes when the source URL changes, so browsers can cache each version forever.
+// A #crop marker (scan with extra margins) is passed through for the pages to apply.
+function coverPath(bookId, url) {
+  if (!url || bookId == null) return null;
+  let h = 2166136261;
+  for (const ch of url) h = Math.imul(h ^ ch.charCodeAt(0), 16777619);
+  return `/covers/${bookId}?v=${(h >>> 0).toString(36)}${url.endsWith('#crop') ? '#crop' : ''}`;
+}
+const withCover = (row, idKey = 'id', key = 'cover_url') => (row && { ...row, [key]: coverPath(row[idKey], row[key]) });
+const withCovers = (rows, idKey, key) => rows.map((r) => withCover(r, idKey, key));
+
 const str = (v, max = 300) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
 
 // ------------------------------------------------------------ data helpers
@@ -83,10 +95,10 @@ route('POST', '/api/logout', () => {
 
 // Public: just the books, in order.
 route('GET', '/api/public/books', async ({ db }) =>
-  json((await db.prepare('SELECT position, title, author, cover_url, storygraph_url FROM books_read ORDER BY position').all()).results));
+  json(withCovers((await db.prepare('SELECT id, position, title, author, cover_url, storygraph_url FROM books_read ORDER BY position').all()).results)));
 
 route('GET', '/api/books', async ({ db }) =>
-  json((await db.prepare('SELECT b.*, (SELECT COUNT(*) FROM book_notes n WHERE n.book_id = b.id) AS n_notes FROM books_read b ORDER BY position').all()).results));
+  json(withCovers((await db.prepare('SELECT b.*, (SELECT COUNT(*) FROM book_notes n WHERE n.book_id = b.id) AS n_notes FROM books_read b ORDER BY position').all()).results)));
 
 route('PATCH', '/api/books/:id', async ({ db, params, body }) => {
   const fields = ['title', 'author', 'nominator', 'read_date', 'notes'].filter((f) => f in body);
@@ -196,8 +208,8 @@ route('DELETE', '/api/me/want-to-read/:wid', async ({ db, me, params }) => {
 
 route('GET', '/api/me/notes', async ({ db, me }) => {
   if (!me) return SIGNED_OUT();
-  return json((await db.prepare(`SELECT n.book_id, n.note, n.updated_at, b.position, b.title, b.author, b.cover_url
-    FROM book_notes n JOIN books_read b ON b.id = n.book_id WHERE n.member_id = ? ORDER BY b.position`).bind(me.id).all()).results);
+  return json(withCovers((await db.prepare(`SELECT n.book_id, n.note, n.updated_at, b.position, b.title, b.author, b.cover_url
+    FROM book_notes n JOIN books_read b ON b.id = n.book_id WHERE n.member_id = ? ORDER BY b.position`).bind(me.id).all()).results, 'book_id'));
 });
 
 route('GET', '/api/books/:id', async ({ db, params }) => {
@@ -206,7 +218,7 @@ route('GET', '/api/books/:id', async ({ db, params }) => {
   const notes = (await db.prepare(`SELECT n.member_id, m.name, n.note, n.updated_at FROM book_notes n
     JOIN members m ON m.id = n.member_id WHERE n.book_id = ? ORDER BY n.updated_at`).bind(book.id).all()).results;
   const favoriteOf = (await db.prepare('SELECT name FROM members WHERE favorite_book_id = ? ORDER BY name').bind(book.id).all()).results.map((r) => r.name);
-  return json({ book, notes, favoriteOf });
+  return json({ book: withCover(book), notes, favoriteOf });
 });
 
 // Your note on a past book; empty note deletes it.
@@ -230,7 +242,7 @@ const TIERS = ['S', 'A', 'B', 'C', 'D', 'F', 'N']; // N = didn't read
 async function tiersOf(db, memberId) {
   const rows = (await db.prepare(`SELECT t.tier, t.book_id, b.title, b.author, b.cover_url FROM tier_entries t
     JOIN books_read b ON b.id = t.book_id WHERE t.member_id = ? ORDER BY t.position`).bind(memberId).all()).results;
-  return Object.fromEntries(TIERS.map((t) => [t, rows.filter((r) => r.tier === t)]));
+  return Object.fromEntries(TIERS.map((t) => [t, withCovers(rows.filter((r) => r.tier === t), 'book_id')]));
 }
 
 // Replace your whole tier list: { tiers: { S: [bookId, ...], A: [...], ... } }, best first.
@@ -263,7 +275,7 @@ route('GET', '/api/members/:id', async ({ db, params }) => {
   if (!m) return bad('no such member', 404);
   const notes = (await db.prepare(`SELECT n.book_id, n.note, n.updated_at, b.position, b.title, b.author, b.cover_url
     FROM book_notes n JOIN books_read b ON b.id = n.book_id WHERE n.member_id = ? ORDER BY b.position`).bind(m.id).all()).results;
-  return json({ member: m, tiers: await tiersOf(db, m.id), notes });
+  return json({ member: withCover(m, 'favorite_book_id', 'favorite_cover'), tiers: await tiersOf(db, m.id), notes: withCovers(notes, 'book_id') });
 });
 
 // Current debt/weight standings, for transparency.

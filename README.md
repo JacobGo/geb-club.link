@@ -33,7 +33,8 @@ npm test
 | `src/tally.js` | Vote counting: debt-weighted STAR and plain STAR. |
 | `src/auth.js` | Club password cookie, member accounts, password hashing. |
 | `db/schema.sql` | Database schema. `db/migrations/` holds changes already applied to the live database. |
-| `db/book_media.sql` | Cover image and StoryGraph link for each book read. Re-runnable. |
+| `db/book_media.sql` | Cover image source and StoryGraph link for each book read. Re-runnable. |
+| `functions/covers/[id].js` | Serves covers from our own copy (D1 `cover_cache`), fetching from the source once. |
 | `test/` | Unit tests for the vote count. |
 
 ## Changing the database
