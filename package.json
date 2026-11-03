@@ -1,0 +1,18 @@
+{
+  "name": "geb-club",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler pages dev --port 8788",
+    "db:init:local": "wrangler d1 execute geb-club --local --file=db/schema.sql && wrangler d1 execute geb-club --local --file=db/seed.sql",
+    "test": "node --test \"test/**/*.test.js\"",
+    "deploy": "wrangler pages deploy public --project-name geb-club --branch main"
+  },
+  "devDependencies": {
+    "wrangler": "^4.156.2"
+  },
+  "allowScripts": {
+    "esbuild@0.28.2": true,
+    "workerd@1.20261102.1": true
+  }
+}

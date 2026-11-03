@@ -1,0 +1,8 @@
+node_modules/
+.wrangler/
+.dev.vars
+.cloudflare.env
+.playwright-mcp/
+.claude/
+private/
+misc.txt

@@ -1,0 +1,8 @@
+name = "geb-club"
+pages_build_output_dir = "public"
+compatibility_date = "2026-10-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "geb-club"
+database_id = "227d1b03-fdb5-4079-9d00-0d486530988a"

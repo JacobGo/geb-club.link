@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Election · GEB Club</title>
+<link rel="stylesheet" href="/style.css">
+<link rel="icon" href="/favicon.svg">
+</head>
+<body>
+<header class="site"><nav>
+  <a class="brand" href="/">GEB Club</a>
+  <a href="/history">History</a>
+  <a href="/voting">How we vote</a>
+  <a href="/members/" aria-current="page">Members</a>
+</nav></header>
+<main id="main"><p class="muted">Loading…</p></main>
+<script type="module">
+import { api, el, fmt, pill, bookCard, bookSearch, getMe } from './app.js';
+
+const id = new URLSearchParams(location.search).get('id');
+const main = document.getElementById('main');
+let members = [];
+let me = null;
+
+async function load() {
+  const [data, ms, m] = await Promise.all([api(`/api/elections/${id}`), api('/api/members'), getMe()]);
+  members = ms;
+  me = m;
+  const { election: e, candidates, ballots, methods } = data;
+  document.title = `${e.title} · GEB Club`;
+  const head = [
+    el('p.small', el('a', { href: '/members/' }, '← All elections')),
+    el('h1', e.title, ' ', pill(e.status)),
+    el('p.muted', methods[e.method] ?? e.method),
+  ];
+  const body = e.status === 'nominating' ? nominating(e, candidates)
+    : e.status === 'voting' ? await voting(e, candidates, ballots)
+    : results(e, candidates, ballots);
+  main.replaceChildren(...[...head, ...body].flat(Infinity).filter((n) => n != null && n !== false && n !== ''));
+}
+
+const action = (label, fn, cls = '') => el(`button${cls}`, { type: 'button', onclick: async (ev) => {
+  ev.target.disabled = true;
+  try { await fn(); await load(); } catch (err) { alert(err.message); ev.target.disabled = false; }
+} }, label);
+
+const signInLink = () => el('p', el('a', { href: '/members/' }, 'Sign in'), ' to take part.');
+
+// ---------------------------------------------------------------- nominating
+function nominating(e, candidates) {
+  const list = [
+    el('h2', `Books (${candidates.length})`),
+    candidates.length ? candidates.map((c) => el('div.card', bookCard(c, [
+      c.nominator && el('div.small.muted', `Nominated by ${c.nominator}`),
+      me && action('Remove', () => confirm(`Remove ${c.title}?`) && api(`/api/elections/${id}/candidates/${c.id}`, { method: 'DELETE' }), '.link.small'),
+    ]))) : el('p.muted', 'None'),
+  ];
+  if (!me) return [...list, signInLink()];
+
+  const msg = el('p.error.small', { role: 'alert' });
+  const f = {
+    title: el('input', { id: 'n-title', required: true, style: 'width:100%' }),
+    author: el('input', { id: 'n-author', style: 'width:100%' }),
+    pitch: el('textarea', { id: 'n-pitch', rows: 2, style: 'width:100%' }),
+  };
+  let picked = {};
+  const preview = el('div');
+  const showPick = () => preview.replaceChildren(picked.ol_key ? el('div.card', bookCard(picked)) : '');
+  const search = bookSearch((book) => {
+    picked = book; f.title.value = book.title; f.author.value = book.author; showPick();
+  });
+  // If someone edits the title by hand after picking, drop the linked record.
+  f.title.addEventListener('input', () => { if (picked.ol_key) { picked = {}; showPick(); } });
+
+  const form = el('form.card',
+    el('h3', 'Add a book'),
+    search, preview,
+    el('div.row',
+      el('div', el('label', { htmlFor: 'n-title' }, 'Title'), f.title),
+      el('div', el('label', { htmlFor: 'n-author' }, 'Author'), f.author)),
+    el('label', { htmlFor: 'n-pitch' }, 'Pitch (optional)'), f.pitch,
+    el('p', el('button', 'Add book')), msg);
+  form.addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    try {
+      await api(`/api/elections/${id}/candidates`, { method: 'POST', body: {
+        ...picked, title: f.title.value, author: f.author.value, pitch: f.pitch.value } });
+      await load();
+    } catch (err) { msg.textContent = err.message; }
+  });
+
+  return [
+    ...list,
+    form,
+    el('p', action('Open voting', () => api(`/api/elections/${id}`, { method: 'PATCH', body: { status: 'voting' } })), ' ',
+      action('Delete election', async () => {
+        if (!confirm('Delete this election and all its nominations?')) return;
+        await api(`/api/elections/${id}`, { method: 'DELETE' });
+        location.href = '/members/';
+      }, '.secondary')),
+  ];
+}
+
+// ---------------------------------------------------------------- voting
+async function voting(e, candidates, ballots) {
+  const voted = new Set(ballots.map((b) => String(b.member_id)));
+  const votedList = [
+    el('h2', `Voted (${ballots.length})`),
+    members.length ? el('p', members.map((m, i) => [i ? ', ' : '', voted.has(String(m.id)) ? el('strong', m.name) : el('span.muted', m.name)])) : '',
+  ];
+  if (!me) return [el('h2', 'Ballot'), signInLink(), ...votedList];
+
+  const { scores } = await api(`/api/elections/${id}/ballot`);
+  const msg = el('p.small.error', { role: 'alert' });
+  const form = el('form',
+    candidates.map((c) => el('div.card', bookCard(c, [
+      c.nominator && el('div.small.muted', `Nominated by ${c.nominator}`),
+      el('div.scores', { role: 'radiogroup', 'aria-label': `Score for ${c.title}` },
+        [0, 1, 2, 3, 4, 5].map((s) => el('label',
+          el('input', { type: 'radio', name: `c${c.id}`, value: s, checked: scores?.[c.id] === s, required: true }),
+          el('span', s)))),
+    ]))),
+    el('p', el('button', scores ? 'Update ballot' : 'Submit ballot'),
+      scores && [' ', action('Withdraw', async () => {
+        if (!confirm('Withdraw your ballot?')) return;
+        await api(`/api/elections/${id}/ballot`, { method: 'DELETE' });
+      }, '.secondary')]),
+    msg);
+  form.addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    const fd = new FormData(form);
+    const body = { scores: Object.fromEntries(candidates.map((c) => [c.id, Number(fd.get(`c${c.id}`))])) };
+    try {
+      await api(`/api/elections/${id}/ballot`, { method: 'PUT', body });
+      await load();
+    } catch (err) { msg.textContent = err.message; }
+  });
+
+  return [
+    el('h2', 'Ballot'),
+    el('p.small', 'Voting as ', el('strong', me.name), scores ? el('span.ok', ' · voted') : ''),
+    form,
+    ...votedList,
+    el('p',
+      action('Close voting and count', async () => {
+        if (!confirm('Close voting and count? This cannot be undone.')) return;
+        await api(`/api/elections/${id}/close`, { method: 'POST', body: {} });
+      }), ' ',
+      action('Back to nominating', () => api(`/api/elections/${id}`, { method: 'PATCH', body: { status: 'nominating' } }), '.secondary')),
+  ];
+}
+
+// ---------------------------------------------------------------- results
+function results(e, candidates, ballots) {
+  const r = e.result;
+  const byId = Object.fromEntries(candidates.map((c) => [String(c.id), c]));
+  const title = (cid) => byId[cid]?.title ?? '?';
+  const winner = byId[String(e.winner_id)];
+  const maxTotal = Math.max(...Object.values(r.totals), 1);
+  const [a, b] = r.finalists;
+  const weighted = r.method === 'debt-star';
+
+  return [
+    el('div.card', el('div.muted.small', 'Winner'), bookCard(winner)),
+    weighted && r.plainStarWinner !== String(e.winner_id)
+      ? el('p.callout.small', `Plain STAR winner: ${title(r.plainStarWinner)}`) : '',
+    r.tiebreaks.map((t) => el('p.callout.small',
+      `${t.round === 'runoff' ? 'Runoff' : 'Scoring round'} tie: ${t.tied.map(title).join(', ')}. Broken by ${t.how}.`)),
+
+    el('h2', 'Scoring round'),
+    el('table', [...candidates].sort((x, y) => r.totals[y.id] - r.totals[x.id]).map((c) => el('tr',
+      el('td', c.title, r.finalists.includes(String(c.id)) ? el('span.muted.small', ' · finalist') : ''),
+      el('td', { style: 'width:40%' }, el('div.bar', { style: `width:${(100 * r.totals[c.id]) / maxTotal}%` })),
+      el('td.num', fmt(r.totals[c.id]))))),
+
+    b ? [el('h2', 'Runoff'),
+      el('table',
+        el('tr', el('td', title(a)), el('td.num', fmt(r.runoff[a]))),
+        el('tr', el('td', title(b)), el('td.num', fmt(r.runoff[b]))),
+        el('tr', el('td.muted', 'No preference'), el('td.num.muted', fmt(r.runoff.noPreference))))] : '',
+
+    el('h2', `Ballots (${ballots.length})`),
+    el('div.table-wrap', el('table',
+      el('tr', el('th', 'Voter'), weighted && el('th.num', 'Debt'), el('th.num', 'Weight'), candidates.map((c) => el('th.num', { title: c.title }, c.title.length > 18 ? c.title.slice(0, 16) + '…' : c.title))),
+      ballots.map((bl) => el('tr',
+        el('td', bl.name),
+        weighted && el('td.num', fmt(r.debts?.[bl.member_id])),
+        el('td.num', fmt(r.weights[bl.member_id])),
+        candidates.map((c) => el('td.num', String(c.id) === String(e.winner_id) ? el('strong', bl.scores[c.id] ?? 0) : (bl.scores[c.id] ?? 0))))))),
+    weighted ? el('p.muted.small', `β = ${r.params.beta}, decay = ${r.params.decay}, floor = ${r.params.floor}. Closed ${e.closed_at} UTC.`) : '',
+  ];
+}
+
+load().catch((err) => main.replaceChildren(el('p.error', err.message)));
+</script>
+</body>
+</html>

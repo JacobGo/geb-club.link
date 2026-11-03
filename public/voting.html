@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How we vote · GEB Club</title>
+<link rel="stylesheet" href="/style.css">
+<link rel="icon" href="/favicon.svg">
+</head>
+<body>
+<header class="site"><nav>
+  <a class="brand" href="/">GEB Club</a>
+  <a href="/history">History</a>
+  <a href="/voting" aria-current="page">How we vote</a>
+  <a href="/members/">Members</a>
+</nav></header>
+<main>
+  <h1>How we vote</h1>
+  <p>Debt-weighted STAR voting.</p>
+
+  <h2>Ballot</h2>
+  <p>Score every book from 0 to 5.</p>
+
+  <h2>Count</h2>
+  <ol>
+    <li><strong>Scoring round:</strong> the two books with the highest total score are the finalists.</li>
+    <li><strong>Runoff:</strong> each ballot is a vote for whichever finalist it scored higher. Ballots that scored them equally count for neither. The finalist with more votes wins.</li>
+  </ol>
+
+  <h2>Weights</h2>
+  <p>Each ballot is multiplied by the voter’s weight, in both rounds.</p>
+  <div class="callout">weight = attendance × max(0.3, 1 + debt)</div>
+  <p>After each election, each voter’s happiness is the score they gave the winner divided by the highest score on their ballot. Then:</p>
+  <div class="callout">debt = 0.75 × debt + (average happiness of voters − your happiness)</div>
+  <ul>
+    <li>Non-voters’ debt is multiplied by 0.75 and nothing is added.</li>
+    <li>A first-time voter starts at the median debt.</li>
+    <li>Attendance = 0.6 + 0.1 × credits, up to 1.0. Credits: +1 per election voted in, −0.5 per election missed, kept between 0 and 8.</li>
+  </ul>
+
+  <h2>Example</h2>
+  <div class="table-wrap"><table>
+    <tr><th>Voter</th><th class="num">Weight</th><th class="num">Book X</th><th class="num">Book Y</th></tr>
+    <tr><td>Ana</td><td class="num">1.6</td><td class="num">5</td><td class="num">1</td></tr>
+    <tr><td>Ben</td><td class="num">0.8</td><td class="num">2</td><td class="num">5</td></tr>
+    <tr><td>Cal</td><td class="num">0.7</td><td class="num">3</td><td class="num">4</td></tr>
+  </table></div>
+  <p>Scores: X 11.7, Y 8.4. Runoff: X 1.6, Y 1.5. X wins. Unweighted, Y wins the runoff 2–1.</p>
+
+  <h2>Ties</h2>
+  <ul>
+    <li><strong>Scoring round:</strong> head-to-head wins among the tied books, then most 5s, then lot.</li>
+    <li><strong>Runoff:</strong> higher total score, then most 5s, then lot.</li>
+  </ul>
+  <p>Lots are drawn from a fixed seed per election, so recounts give the same result.</p>
+
+  <p>Elections can also use plain STAR (all weights 1). Plain-STAR elections still update debt.</p>
+</main>
+</body>
+</html>

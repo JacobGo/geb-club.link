@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GEB Club</title>
+<link rel="stylesheet" href="/style.css">
+<link rel="icon" href="/favicon.svg">
+</head>
+<body>
+<header class="site"><nav>
+  <a class="brand" href="/">GEB Club</a>
+  <a href="/history">History</a>
+  <a href="/voting">How we vote</a>
+  <a href="/members/">Members</a>
+</nav></header>
+<main>
+  <h1>GEB Club</h1>
+  <p id="latest"></p>
+</main>
+<script>
+fetch('/api/public/books').then(r => r.json()).then(books => {
+  const b = books.at(-1);
+  if (b) document.getElementById('latest').textContent = `Latest book: ${b.title}, ${b.author}`;
+});
+</script>
+</body>
+</html>

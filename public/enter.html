@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Members · GEB Club</title>
+<link rel="stylesheet" href="/style.css">
+<link rel="icon" href="/favicon.svg">
+</head>
+<body>
+<header class="site"><nav>
+  <a class="brand" href="/">GEB Club</a>
+  <a href="/history">History</a>
+  <a href="/voting">How we vote</a>
+  <a href="/members/" aria-current="page">Members</a>
+</nav></header>
+<main>
+  <h1>Members</h1>
+  <form id="f" class="card" style="max-width: 24rem">
+    <label for="pw">Club password</label>
+    <input id="pw" type="password" autocomplete="current-password" required autofocus style="width:100%">
+    <p><button>Enter</button> <span id="msg" class="error" role="alert"></span></p>
+    <p class="muted small">You'll stay signed in on this browser for a year.</p>
+  </form>
+</main>
+<script>
+document.getElementById('f').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const r = await fetch('/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ password: document.getElementById('pw').value }) });
+  if (r.ok) {
+    const next = new URLSearchParams(location.search).get('next') || '/members/';
+    location.href = next.startsWith('/') && !next.startsWith('//') ? next : '/members/';
+  } else {
+    document.getElementById('msg').textContent = (await r.json().catch(() => ({}))).error || 'Something went wrong';
+  }
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>History · GEB Club</title>
+<link rel="stylesheet" href="/style.css">
+<link rel="icon" href="/favicon.svg">
+</head>
+<body>
+<header class="site"><nav>
+  <a class="brand" href="/">GEB Club</a>
+  <a href="/history" aria-current="page">History</a>
+  <a href="/voting">How we vote</a>
+  <a href="/members/">Members</a>
+</nav></header>
+<main>
+  <h1>History</h1>
+  <ol class="books" id="books"><li class="muted">Loading…</li></ol>
+</main>
+<script>
+fetch('/api/public/books').then(r => r.json()).then(books => {
+  document.getElementById('books').replaceChildren(...books.map(b => {
+    const li = document.createElement('li');
+    li.value = b.position;
+    const t = document.createElement('cite');
+    t.textContent = b.title;
+    const a = document.createElement('span');
+    a.className = 'author';
+    a.textContent = b.author ? ` · ${b.author}` : '';
+    const sg = document.createElement('a');
+    sg.href = `https://app.thestorygraph.com/browse?search_term=${encodeURIComponent([b.title, b.author].filter(Boolean).join(' '))}`;
+    sg.target = '_blank';
+    sg.rel = 'noopener';
+    sg.className = 'small';
+    sg.textContent = 'StoryGraph';
+    li.append(t, a, ' ', sg);
+    return li;
+  }));
+});
+</script>
+</body>
+</html>
