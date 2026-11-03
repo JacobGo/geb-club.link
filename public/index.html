@@ -81,20 +81,43 @@
 const make = (tag, props = {}, ...kids) => { const n = Object.assign(document.createElement(tag), props); n.append(...kids); return n; };
 // Club names, newest first. One word of G-E-B changes each book.
 // chunks: the G, E and B words (first letter shown large). tail: what follows.
-// book: the history position (#) the name belonged to, shown as "during <title>".
+// book: the history position (#) the name belonged to, shown as "during <title>". "…" = word not remembered.
+// Book 5 (Hunt, Gather, Parent): word unknown, and assumed to have rotated the B.
+// Book 16 (Heir to the Empire): a G word, not remembered.
 const NAMES = [
-  { chunks: ['greatandsecretknowledge-', 'esk-', 'bacalao'], tail: 'club' },
-  { chunks: ['gödel ', 'escher ', 'bach'], tail: 'book club', book: 1 },
+  { chunks: ['greatandsecretknowledge-', 'esk-', 'bacalao'], tail: 'club', book: 22 },
+  { chunks: ['grief ', 'esk ', 'bacalao'], tail: 'club', book: 21 },
+  { chunks: ['grief ', 'esk ', 'back2thefuture'], tail: 'club', book: 20 },
+  { chunks: ['grief ', 'electronics ', 'back2thefuture'], tail: 'club', book: 19 },
+  { chunks: ['g… ', 'electronics ', 'back2thefuture'], tail: 'club', book: 18 },
+  { chunks: ['g… ', 'electronics ', 'byzantine'], tail: 'club', book: 17 },
+  { chunks: ['g… ', 'ecumenical ', 'byzantine'], tail: 'club', book: 16 },
+  { chunks: ['gospel ', 'ecumenical ', 'byzantine'], tail: 'club', book: 15 },
+  { chunks: ['gospel ', 'erogenous ', 'byzantine'], tail: 'club', book: 14 },
+  { chunks: ['garlic ', 'erogenous ', 'byzantine'], tail: 'club', book: 13 },
+  { chunks: ['garlic ', 'erogenous ', 'bromance'], tail: 'club', book: 12 },
+  { chunks: ['garlic ', 'enlightenment ', 'bromance'], tail: 'club', book: 11 },
+  { chunks: ['ghostwriter ', 'enlightenment ', 'bromance'], tail: 'club', book: 10 },
+  { chunks: ['ghostwriter ', 'enlightenment ', 'business'], tail: 'club', book: 9 },
+  { chunks: ['ghostwriter ', 'espionage ', 'business'], tail: 'club', book: 8 },
+  { chunks: ['guardship ', 'espionage ', 'business'], tail: 'club', book: 7 },
+  { chunks: ['guardship ', 'espionage ', 'b…'], tail: 'club', book: 6 },
+  { chunks: ['gathering ', 'espionage ', 'b…'], tail: 'club', book: 5 },
+  { chunks: ['gathering ', 'espionage ', 'baru'], tail: 'club', book: 4 },
+  { chunks: ['gathering ', 'escher ', 'baru'], tail: 'club', book: 3 },
+  { chunks: ['gödel ', 'escher ', 'baru'], tail: 'club', book: 2 },
+  { chunks: ['gödel ', 'escher ', 'bach'], tail: 'club', book: 1 },
 ];
 let BOOKS = [];
 const geb = document.getElementById('geb');
 let current = 0;
+const word = (c) => c.replace(/[-\s]+$/, '');
 function showName(i) {
   const prev = NAMES[current];
   current = Math.max(0, Math.min(NAMES.length - 1, i));
   const n = NAMES[current];
   // only the word that rotated animates; the other two stay put
-  geb.replaceChildren(...n.chunks.map((c, k) => make('span', { className: prev !== n && prev.chunks[k] !== c ? 'w changed' : 'w' },
+  geb.replaceChildren(...n.chunks.map((c, k) => make('span', { className: prev !== n && word(prev.chunks[k]) !== word(c) ? 'w changed' : 'w' },
     c[0].toUpperCase(), make('span', { className: 'rest' }, c.slice(1)))));
   geb.setAttribute('aria-label', `${n.chunks.join('')} ${n.tail}`);
   document.getElementById('club').textContent = n.tail;
