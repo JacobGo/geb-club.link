@@ -1,5 +1,5 @@
--- Cover images (Open Library) and official StoryGraph pages for books read.
--- Safe to re-run. Missing cover: 17 House of Huawei.
+-- Cover images and official StoryGraph pages for books read. Covers from Open Library,
+-- except House of Huawei (Google Books; Open Library has none). Safe to re-run.
 UPDATE books_read SET cover_url = 'https://covers.openlibrary.org/b/id/14368453-M.jpg', storygraph_url = 'https://app.thestorygraph.com/books/7afddb73-0d19-4698-9047-0b7572fffccc' WHERE position = 1; -- Gödel, Escher, Bach
 UPDATE books_read SET cover_url = 'https://covers.openlibrary.org/b/id/10496793-M.jpg', storygraph_url = 'https://app.thestorygraph.com/books/299846e6-b438-4c45-ab0d-25593b7bef28' WHERE position = 2; -- The Traitor Baru Cormorant
 UPDATE books_read SET cover_url = 'https://covers.openlibrary.org/b/id/10286212-M.jpg', storygraph_url = 'https://app.thestorygraph.com/books/f2a8c0d1-2e6b-4e44-b6a4-83dfa871bbf2' WHERE position = 3; -- The Art of Gathering
@@ -16,7 +16,7 @@ UPDATE books_read SET cover_url = 'https://covers.openlibrary.org/b/id/8802134-M
 UPDATE books_read SET cover_url = 'https://covers.openlibrary.org/b/id/10656335-M.jpg', storygraph_url = 'https://app.thestorygraph.com/books/2466dad1-7790-4070-87b4-39b716f9874b' WHERE position = 14; -- The Gospel in Brief
 UPDATE books_read SET cover_url = 'https://covers.openlibrary.org/b/id/10618463-M.jpg', storygraph_url = 'https://app.thestorygraph.com/books/315b6b70-2fe7-4bd0-b139-02a696ff6fb0' WHERE position = 15; -- The Left Hand of Darkness
 UPDATE books_read SET cover_url = 'https://covers.openlibrary.org/b/id/11107659-M.jpg', storygraph_url = 'https://app.thestorygraph.com/books/0c7f2e19-0113-457b-a005-1ef9ff6b4848' WHERE position = 16; -- Heir to the Empire
-UPDATE books_read SET cover_url = NULL, storygraph_url = 'https://app.thestorygraph.com/books/b32828a2-a6c0-4a03-8717-0547a6da04b3' WHERE position = 17; -- House of Huawei
+UPDATE books_read SET cover_url = 'https://books.google.com/books/content?vid=ISBN9780593544631&printsec=frontcover&img=1&zoom=1', storygraph_url = 'https://app.thestorygraph.com/books/b32828a2-a6c0-4a03-8717-0547a6da04b3' WHERE position = 17; -- House of Huawei
 UPDATE books_read SET cover_url = 'https://covers.openlibrary.org/b/id/9159096-M.jpg', storygraph_url = 'https://app.thestorygraph.com/books/e05ff6cb-9731-41d6-80cf-2c432945ca0e' WHERE position = 18; -- 10:04
 UPDATE books_read SET cover_url = 'https://covers.openlibrary.org/b/id/13693-M.jpg', storygraph_url = 'https://app.thestorygraph.com/books/41e98516-d52e-42b0-8dd9-ee93be8534dc' WHERE position = 19; -- The Year of Magical Thinking
 UPDATE books_read SET cover_url = 'https://covers.openlibrary.org/b/id/7355949-M.jpg', storygraph_url = 'https://app.thestorygraph.com/books/92b37194-21e3-494e-8f4d-11843d8331a0' WHERE position = 20; -- Ancillary Justice
