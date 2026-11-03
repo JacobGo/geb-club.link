@@ -30,15 +30,30 @@
   <h2>Weights</h2>
   <p>Each ballot is multiplied by the voter’s weight, in both rounds.</p>
   <div class="callout">weight = attendance × max(0.3, 1 + debt)</div>
-  <p>After each election, each voter’s happiness is the score they gave the winner divided by the highest score on their ballot. Then:</p>
-  <div class="callout">debt = 0.75 × debt + (average happiness of voters − your happiness)</div>
+
+  <h2>Debt</h2>
+  <p>After each election, for each voter:</p>
+  <ul>
+    <li><strong>Happiness</strong> = (score you gave the winner − your lowest score) ÷ (your highest score − your lowest score). 1 if the winner was your top book, 0 if it was your bottom one.</li>
+    <li><strong>Stake</strong> = (your highest score − your lowest score) ÷ 5. Scoring every book the same is stake 0. Using the full 0–5 range is stake 1.</li>
+  </ul>
+  <div class="callout">debt = 0.75 × debt + stake × (average happiness − your happiness)</div>
+  <p>The average happiness is weighted by stake. Debts across the club add up to zero.</p>
   <ul>
     <li>Non-voters’ debt is multiplied by 0.75 and nothing is added.</li>
-    <li>A first-time voter starts at the median debt.</li>
+    <li>Members who joined before the first election start with attendance 1.0.</li>
+    <li>Members who join later start at the median debt.</li>
     <li>Attendance = 0.6 + 0.1 × credits, up to 1.0. Credits: +1 per election voted in, −0.5 per election missed, kept between 0 and 8.</li>
   </ul>
+  <div class="table-wrap"><table>
+    <tr><th>Voter</th><th class="num">A</th><th class="num">B</th><th class="num">C</th><th class="num">Happiness</th><th class="num">Stake</th><th class="num">Debt change</th></tr>
+    <tr><td>Ana</td><td class="num">1</td><td class="num">1</td><td class="num">1</td><td class="num">—</td><td class="num">0</td><td class="num">0</td></tr>
+    <tr><td>Ben</td><td class="num">5</td><td class="num">3</td><td class="num">0</td><td class="num">0.6</td><td class="num">1</td><td class="num">+0.1</td></tr>
+    <tr><td>Cal</td><td class="num">0</td><td class="num">4</td><td class="num">5</td><td class="num">0.8</td><td class="num">1</td><td class="num">−0.1</td></tr>
+  </table></div>
+  <p>B wins. Average happiness (weighted by stake) is 0.7.</p>
 
-  <h2>Example</h2>
+  <h2>Weighted count example</h2>
   <div class="table-wrap"><table>
     <tr><th>Voter</th><th class="num">Weight</th><th class="num">Book X</th><th class="num">Book Y</th></tr>
     <tr><td>Ana</td><td class="num">1.6</td><td class="num">5</td><td class="num">1</td></tr>

@@ -25,9 +25,18 @@ const EPS = 1e-9;
 const eq = (a, b) => Math.abs(a - b) < EPS;
 const score = (b, c) => b.scores[c] ?? 0;
 
-export function satisfaction(scores, winner, candidates) {
-  const top = Math.max(0, ...candidates.map((c) => scores[c] ?? 0));
-  return top === 0 ? 1 : (scores[winner] ?? 0) / top;
+/**
+ * How happy one voter was with the winner, measured within their own ballot:
+ * 0 = the winner was their lowest-scored book, 1 = their highest.
+ * stake = how much they cared, the spread of their scores / 5 (0 for a flat ballot).
+ */
+export function happiness(scores, winner, candidates) {
+  const vals = candidates.map((c) => scores[c] ?? 0);
+  const lo = Math.min(...vals), hi = Math.max(...vals);
+  return {
+    happiness: hi === lo ? 1 : ((scores[winner] ?? 0) - lo) / (hi - lo),
+    stake: (hi - lo) / 5,
+  };
 }
 
 function median(xs) {
@@ -115,8 +124,15 @@ export function weightedStar(candidates, ballots, weights = {}, seed = 'geb') {
 
 // ---------------------------------------------------------------- debt state
 
-export function emptyState() {
-  return { debt: {}, seen: {} };
+/**
+ * Starting state. founders: members who joined before the first election closed; they
+ * start at full attendance. seeds: { memberId: startingDebt } (the Piranesi seeding).
+ */
+export function emptyState({ founders = [], seeds = {} } = {}, p = DEBT_PARAMS) {
+  const state = { debt: {}, seen: {} };
+  for (const v of founders) { state.seen[v] = p.rampRounds; state.debt[v] = 0; }
+  for (const [v, d] of Object.entries(seeds)) state.debt[v] = d;
+  return state;
 }
 
 export function attendance(state, voter, p = DEBT_PARAMS) {
@@ -141,11 +157,14 @@ export function applyRound(state, candidates, ballots, winner, p = DEBT_PARAMS) 
   const voters = ballots.map((b) => b.voter);
   Object.assign(state.debt, Object.fromEntries(
     Object.entries(debtsFor(state, voters)).filter(([v]) => !(v in state.debt))));
-  const s = Object.fromEntries(ballots.map((b) => [b.voter, satisfaction(b.scores, winner, candidates)]));
-  const mean = voters.reduce((t, v) => t + s[v], 0) / voters.length;
+  // Each voter moves by stake x (stake-weighted average happiness - their happiness),
+  // so flat ballots don't move debt and debts still sum to zero.
+  const h = Object.fromEntries(ballots.map((b) => [b.voter, happiness(b.scores, winner, candidates)]));
+  const totalStake = voters.reduce((t, v) => t + h[v].stake, 0);
+  const mean = totalStake ? voters.reduce((t, v) => t + h[v].stake * h[v].happiness, 0) / totalStake : 0;
   for (const v in state.debt) state.debt[v] *= p.decay;
   for (const v of voters) {
-    state.debt[v] += mean - s[v];
+    state.debt[v] += h[v].stake * (mean - h[v].happiness);
     state.seen[v] = Math.min(p.maxSeen, (state.seen[v] ?? 0) + 1);
   }
   for (const v in state.seen) if (!voters.includes(v)) state.seen[v] = Math.max(0, state.seen[v] - p.missPenalty);
@@ -153,8 +172,8 @@ export function applyRound(state, candidates, ballots, winner, p = DEBT_PARAMS) 
 }
 
 /** Replay closed elections (oldest first): [{candidates, ballots, winner}]. */
-export function replay(history, p = DEBT_PARAMS) {
-  const state = emptyState();
+export function replay(history, start = {}, p = DEBT_PARAMS) {
+  const state = emptyState(start, p);
   for (const e of history) applyRound(state, e.candidates, e.ballots, e.winner, p);
   return state;
 }

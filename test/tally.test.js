@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { weightedStar, tally, replay, applyRound, emptyState, weightsFor, DEBT_PARAMS } from '../src/tally.js';
+import { weightedStar, tally, replay, applyRound, emptyState, weightsFor, happiness, DEBT_PARAMS } from '../src/tally.js';
 
 const B = (voter, scores) => ({ voter, scores });
 
@@ -68,4 +68,36 @@ test('plain STAR method ignores debt', () => {
   const r = tally({ method: 'star', candidates: ['A', 'B'], ballots: [B('x', { A: 5, B: 0 }), B('y', { A: 0, B: 5 }), B('z', { A: 0, B: 5 })] }, st);
   assert.equal(r.winner, 'B');
   assert.deepEqual(r.weights, { x: 1, y: 1, z: 1 });
+});
+
+test('happiness is measured from your lowest score; stake is your spread / 5', () => {
+  assert.deepEqual(happiness({ A: 0, B: 1, C: 2 }, 'A', ['A', 'B', 'C']), { happiness: 0, stake: 0.4 });
+  assert.deepEqual(happiness({ A: 2, B: 3, C: 4 }, 'A', ['A', 'B', 'C']), { happiness: 0, stake: 0.4 });
+  assert.deepEqual(happiness({ A: 2, B: 3, C: 4 }, 'B', ['A', 'B', 'C']), { happiness: 0.5, stake: 0.4 });
+  assert.deepEqual(happiness({ A: 1, B: 1 }, 'A', ['A', 'B']), { happiness: 1, stake: 0 });
+});
+
+test('flat ballot does not move debt; others still sum to zero', () => {
+  const st = emptyState({ founders: ['ana', 'ben', 'cal'] });
+  applyRound(st, ['A', 'B', 'C'], [
+    B('ana', { A: 1, B: 1, C: 1 }), B('ben', { A: 5, B: 3, C: 0 }), B('cal', { A: 0, B: 4, C: 5 })], 'B');
+  assert.equal(st.debt.ana, 0);
+  assert.ok(Math.abs(st.debt.ben - 0.1) < 1e-9 && Math.abs(st.debt.cal + 0.1) < 1e-9, JSON.stringify(st.debt));
+});
+
+test('a 2-4 ballot moves debt exactly like a 0-2 ballot', () => {
+  const run = (ana) => {
+    const st = emptyState({ founders: ['ana', 'ben'] });
+    applyRound(st, ['A', 'B'], [B('ana', ana), B('ben', { A: 5, B: 0 })], 'A');
+    return st.debt.ana;
+  };
+  assert.ok(Math.abs(run({ A: 0, B: 2 }) - run({ A: 2, B: 4 })) < 1e-9);
+});
+
+test('founding members start at weight 1; seeds set starting debt', () => {
+  const st = emptyState({ founders: ['ana', 'ben'], seeds: { ben: 0.2 } });
+  const w = weightsFor(st, ['ana', 'ben', 'new']);
+  assert.equal(w.ana, 1);
+  assert.ok(Math.abs(w.ben - 1.2) < 1e-9);
+  assert.ok(Math.abs(w.new - DEBT_PARAMS.newcomerAttendance * (1 + 0.1)) < 1e-9, 'newcomer: median debt (0.1), reduced attendance');
 });

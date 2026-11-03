@@ -49,7 +49,17 @@ async function debtState(db, beforeId = null) {
     const ballots = (await ballotsOf(db, e.id)).map((b) => ({ voter: String(b.member_id), scores: b.scores }));
     history.push({ candidates: cands, ballots, winner: String(e.winner_id) });
   }
-  return replay(history);
+  return replay(history, await startState(db));
+}
+
+// Founding members (joined before the first election closed) start at full attendance;
+// debt_seeds holds starting debts.
+async function startState(db) {
+  const first = await db.prepare("SELECT MIN(closed_at) AS t FROM elections WHERE status = 'closed'").first();
+  const founders = (await db.prepare(first?.t ? 'SELECT id FROM members WHERE created_at < ?' : 'SELECT id FROM members')
+    .bind(...(first?.t ? [first.t] : [])).all()).results.map((r) => String(r.id));
+  const seeds = Object.fromEntries((await db.prepare('SELECT member_id, debt FROM debt_seeds').all()).results.map((r) => [String(r.member_id), r.debt]));
+  return { founders, seeds };
 }
 
 // ------------------------------------------------------------ routes
