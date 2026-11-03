@@ -7,7 +7,16 @@
 <link rel="stylesheet" href="/style.css">
 <link rel="icon" href="/favicon.svg">
 <style>
-  .home { max-width: 1100px; text-align: center; overflow: hidden; padding-top: 2.5rem; }
+  .home { max-width: 1100px; text-align: center; overflow: hidden; padding-top: 2.5rem; position: relative; }
+  /* lines from each word of the name to the cover of the book that contributed it */
+  .links { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; z-index: 2; }
+  .links path { fill: none; stroke-linecap: round; transition: opacity .3s; }
+  .links .halo { stroke: var(--paper); stroke-width: 4; opacity: .75; }
+  .links .old { stroke: var(--muted); stroke-width: 1.2; stroke-dasharray: 3 4; opacity: .8; }
+  .links .new { stroke: var(--accent); stroke-width: 1.6; opacity: .9; }
+  .links circle { fill: var(--accent); }
+  .geb, .names, .era { position: relative; z-index: 3; }
+  .geb .w.new, .geb .w.new .rest { color: var(--accent); }
 
   /* GEB -> Gödel Escher Bach */
   .geb { font-size: clamp(3.2rem, 11vw, 7.5rem); font-weight: 600; letter-spacing: .02em; margin: 0; line-height: 1;
@@ -20,6 +29,7 @@
   .geb .w:nth-child(2) .rest { transition-delay: .08s; }
   .geb .w:nth-child(3) .rest { transition-delay: .16s; }
   .geb:focus { outline: none; }
+  .geb .w { transition: color .4s; }
   .geb .w.changed { animation: rotate-in .55s cubic-bezier(.2,.7,.2,1); }
   @keyframes rotate-in { from { opacity: 0; transform: translateY(.35em) rotateX(70deg); } to { opacity: 1; transform: none; } }
   .names { display: inline-flex; align-items: center; gap: .9rem; margin-top: .6rem; }
@@ -31,7 +41,7 @@
 
   /* the strange loop: every book on a turning ring */
   .stage { --w: 104px; --h: 156px; --r: 380px; height: calc(var(--h) * 2.3); perspective: 1400px; perspective-origin: 50% 30%;
-    position: relative; margin-top: 1.5rem; touch-action: pan-y; cursor: grab; user-select: none; -webkit-user-select: none; }
+    position: relative; z-index: 1; margin-top: 1.5rem; touch-action: pan-y; cursor: grab; user-select: none; -webkit-user-select: none; }
   .stage.dragging { cursor: grabbing; }
   .floor { position: absolute; left: 50%; top: 62%; width: calc(var(--r) * 2.3); height: calc(var(--r) * .5);
     transform: translate(-50%, 0); background: radial-gradient(ellipse at center, rgba(0,0,0,.18), transparent 65%); pointer-events: none; }
@@ -65,6 +75,7 @@
   <a href="/members/">Members</a>
 </nav></header>
 <main class="home">
+  <svg class="links" id="links" aria-hidden="true"></svg>
   <h1 class="geb open" id="geb" aria-live="polite"></h1>
   <div><span class="names">
     <button type="button" id="older" aria-label="Previous book">‹</button>
@@ -112,16 +123,23 @@ let BOOKS = [];
 const geb = document.getElementById('geb');
 const word = (c) => c.replace(/[-\s]+$/, '');
 const nameFor = (position) => NAMES.find((n) => n.book === position);
+// SOURCES[book][slot] = the book whose round introduced the G / E / B word in use during `book`
+const SOURCES = {};
+[...NAMES].sort((a, b) => a.book - b.book).forEach((n, i, all) => {
+  const prev = all[i - 1];
+  SOURCES[n.book] = n.chunks.map((c, k) => (prev && word(prev.chunks[k]) === word(c) ? SOURCES[prev.book][k] : n.book));
+});
 let shown = null;
 
 // Show one club name; only the word that rotated since the last one animates.
-let shownBook = null;
+let shownBook = null, shownFor = null;
 function showName(n, book) {
   if (!n) return;
   if (book !== shownBook) { shownBook = book; document.getElementById('era').replaceChildren(book ? make('span', {}, 'during ', make('cite', {}, book.title)) : ''); }
-  if (n === shown) return;
-  const prev = shown; shown = n;
-  geb.replaceChildren(...n.chunks.map((c, k) => make('span', { className: prev && word(prev.chunks[k]) !== word(c) ? 'w changed' : 'w' },
+  if (n === shown && book === shownFor) return;
+  const prev = shown; shown = n; shownFor = book;
+  const src = book ? SOURCES[book.position] : null;
+  geb.replaceChildren(...n.chunks.map((c, k) => make('span', { className: ['w', prev && prev !== n && word(prev.chunks[k]) !== word(c) ? 'changed' : '', src && src[k] === book.position ? 'new' : ''].join(' ').trim() },
     c[0].toUpperCase(), make('span', { className: 'rest' }, c.slice(1)))));
   geb.setAttribute('aria-label', `${n.chunks.join('')} ${n.tail}`);
   document.getElementById('club').textContent = n.tail;
@@ -158,9 +176,9 @@ showName(NAMES[0]);
 // The ring turns slowly on its own; drag or swipe to spin it (with momentum).
 // The book at the front decides the club name shown above. A real mouse hovering
 // pauses it; tapping a cover opens it unless you were dragging.
-function spinRing(stage, ring, count, onFront) {
+function spinRing(stage, ring, count, onFront, onFrame) {
   const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const AUTO = reduce ? 0 : 4;           // degrees per second (positive = back in time)
+  const AUTO = reduce ? 0 : -4;          // degrees per second (negative = forward in time)
   const DRAG = 0.35;                      // degrees per pixel dragged
   const STEP = 360 / count;
   let angle = -(count - 1) * STEP;        // start with the latest book at the front
@@ -180,6 +198,7 @@ function spinRing(stage, ring, count, onFront) {
     }
     ring.style.transform = `rotateX(-9deg) rotateY(${angle}deg)`;
     const f = frontIndex();
+    onFrame?.(angle, f);
     if (f !== front) {
       front = f; onFront(f);
       // the page opens on the latest book; after that, the drift settles on GEB (the first book) each loop
@@ -256,7 +275,41 @@ fetch('/api/public/books').then(r => r.json()).then(books => {
   place();
   addEventListener('resize', place);
 
-  const spin = spinRing(stage, ring, n, (i) => showName(nameFor(books[i].position), books[i]));
+  const links = document.getElementById('links'), home = links.parentElement;
+  const cards = [...ring.children], indexOf = Object.fromEntries(books.map((b, i) => [b.position, i]));
+  const STEP = 360 / n;
+  const svgEl = (tag) => links.appendChild(document.createElementNS('http://www.w3.org/2000/svg', tag));
+  // each line has a halo in the page colour underneath so it reads over any cover
+  const halos = [0, 1, 2].map(() => { const h = svgEl('path'); h.setAttribute('class', 'halo'); return h; });
+  const paths = [0, 1, 2].map(() => svgEl('path'));
+  const dots = [0, 1, 2].map(() => { const c = links.appendChild(document.createElementNS('http://www.w3.org/2000/svg', 'circle')); c.setAttribute('r', 2.5); return c; });
+  const drawLinks = (angle, front) => {
+    const pos = books[front].position, src = SOURCES[pos];
+    if (!src) return;
+    const box = home.getBoundingClientRect();
+    const words = geb.querySelectorAll('.w');
+    src.forEach((from, k) => {
+      const i = indexOf[from], w = words[k];
+      if (i == null || !w) { paths[k].setAttribute('d', ''); halos[k].setAttribute('d', ''); return; }
+      // the cover's visible side: front face within 90 degrees of facing us, back face otherwise
+      const facing = Math.cos(((i * STEP + angle) * Math.PI) / 180) > 0;
+      const img = cards[i].querySelector(facing ? '.face.front img, .face.front .blank' : '.face.back img, .face.back .blank');
+      if (!img) return;
+      const a = w.getBoundingClientRect(), b = img.getBoundingClientRect();
+      const x1 = a.left + a.width / 2 - box.left, y1 = a.bottom - box.top - a.height * 0.12;
+      const x2 = b.left + b.width / 2 - box.left, y2 = b.top - box.top;
+      const my = y1 + (y2 - y1) * 0.55;
+      const d = `M${x1},${y1} C${x1},${my} ${x2},${my} ${x2},${y2}`;
+      paths[k].setAttribute('d', d); halos[k].setAttribute('d', d);
+      halos[k].style.opacity = facing ? '' : '0.2';
+      const isNew = from === pos;
+      paths[k].setAttribute('class', isNew ? 'new' : 'old');
+      paths[k].style.opacity = facing ? '' : '0.25';
+      dots[k].setAttribute('cx', x2); dots[k].setAttribute('cy', y2);
+      dots[k].style.display = isNew ? '' : 'none';
+    });
+  };
+  const spin = spinRing(stage, ring, n, (i) => showName(nameFor(books[i].position), books[i]), drawLinks);
   document.getElementById('older').onclick = () => spin.step(-1);
   document.getElementById('newer').onclick = () => spin.step(1);
   // scroll wheel / swipe on the title also turn the ring, one book at a time
