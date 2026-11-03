@@ -37,16 +37,17 @@
     transform: translate(-50%, 0); background: radial-gradient(ellipse at center, rgba(0,0,0,.18), transparent 65%); pointer-events: none; }
   .ring { position: absolute; left: 50%; top: 18%; width: var(--w); height: var(--h); margin-left: calc(var(--w) / -2);
     transform-style: preserve-3d; transform: rotateX(-9deg) rotateY(0deg); will-change: transform; }
-  .card { position: absolute; inset: 0; transform-style: preserve-3d; display: block; }
-  .card .face { position: absolute; inset: 0; backface-visibility: hidden; border-radius: 3px; overflow: hidden;
-    box-shadow: 0 10px 22px -10px rgba(0,0,0,.55); background: var(--rule); }
-  .card .face img { width: 100%; height: 100%; object-fit: cover; display: block; }
-  .card .face.back { transform: rotateY(180deg); filter: brightness(.45) saturate(.7); }
-  .card .face.front { transition: transform .25s ease; }
-  .card:hover .face.front, .card:focus-visible .face.front { transform: translateZ(18px) scale(1.05); }
-  .card:focus-visible { outline: none; }
-  .card:focus-visible .face.front { outline: 2px solid var(--accent); outline-offset: 3px; }
-  .card .blank { display: flex; align-items: center; justify-content: center; padding: .5rem; font-size: .75rem; font-style: italic; color: var(--muted); }
+  .ring-book { position: absolute; inset: 0; transform-style: preserve-3d; display: block; }
+  /* each cover keeps its own proportions, standing on the bottom of its slot (no cropping) */
+  .ring-book .face { position: absolute; inset: 0; backface-visibility: hidden; display: flex; align-items: flex-end; justify-content: center; }
+  .ring-book .face img { display: block; max-width: 100%; max-height: 100%; border-radius: 3px; box-shadow: 0 10px 22px -10px rgba(0,0,0,.55); }
+  .ring-book .face img.crop { width: 100%; height: 100%; object-fit: cover; }  /* scans with extra margin, trimmed to 2:3 */
+  .ring-book .face.back { transform: rotateY(180deg); filter: brightness(.45) saturate(.7); }
+  .ring-book .face.front { transition: transform .25s ease; }
+  .ring-book:hover .face.front, .ring-book:focus-visible .face.front { transform: translateZ(18px) scale(1.05); }
+  .ring-book:focus-visible { outline: none; }
+  .ring-book:focus-visible .face.front img { outline: 2px solid var(--accent); outline-offset: 3px; }
+  .ring-book .blank { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; padding: .5rem; font-size: .75rem; font-style: italic; color: var(--muted); background: var(--rule); border-radius: 3px; }
 
   .count { color: var(--muted); font-size: .95rem; margin-top: .5rem; }
   .count a { color: inherit; }
@@ -63,11 +64,11 @@
   <a href="/members/">Members</a>
 </nav></header>
 <main class="home">
-  <h1 class="geb" id="geb" tabindex="0"></h1>
+  <h1 class="geb open" id="geb" aria-live="polite"></h1>
   <div><span class="names">
-    <button type="button" id="older" aria-label="Older club name" hidden>‹</button>
+    <button type="button" id="older" aria-label="Previous book">‹</button>
     <span class="club" id="club"></span>
-    <button type="button" id="newer" aria-label="Newer club name" hidden>›</button>
+    <button type="button" id="newer" aria-label="Next book">›</button>
   </span></div>
   <span class="era" id="era"></span>
   <div class="stage" id="stage" aria-label="Books we've read">
@@ -109,64 +110,48 @@ const NAMES = [
 ];
 let BOOKS = [];
 const geb = document.getElementById('geb');
-let current = 0;
 const word = (c) => c.replace(/[-\s]+$/, '');
-function showName(i) {
-  const prev = NAMES[current];
-  current = Math.max(0, Math.min(NAMES.length - 1, i));
-  const n = NAMES[current];
-  // only the word that rotated animates; the other two stay put
-  geb.replaceChildren(...n.chunks.map((c, k) => make('span', { className: prev !== n && word(prev.chunks[k]) !== word(c) ? 'w changed' : 'w' },
+const nameFor = (position) => NAMES.find((n) => n.book === position);
+let shown = null;
+
+// Show one club name; only the word that rotated since the last one animates.
+let shownBook = null;
+function showName(n, book) {
+  if (!n) return;
+  if (book !== shownBook) { shownBook = book; document.getElementById('era').replaceChildren(book ? make('span', {}, 'during ', make('cite', {}, book.title)) : ''); }
+  if (n === shown) return;
+  const prev = shown; shown = n;
+  geb.replaceChildren(...n.chunks.map((c, k) => make('span', { className: prev && word(prev.chunks[k]) !== word(c) ? 'w changed' : 'w' },
     c[0].toUpperCase(), make('span', { className: 'rest' }, c.slice(1)))));
   geb.setAttribute('aria-label', `${n.chunks.join('')} ${n.tail}`);
   document.getElementById('club').textContent = n.tail;
-  const era = document.getElementById('era'), book = BOOKS.find((b) => b.position === n.book);
-  era.replaceChildren(current === 0 ? '' : book ? make('span', {}, 'during ', make('cite', {}, book.title)) : 'formerly');
-  document.getElementById('older').hidden = current >= NAMES.length - 1;
-  document.getElementById('newer').hidden = current === 0;
 }
-const step = (d) => { showName(current + d); geb.classList.add('open'); };
-document.getElementById('older').onclick = () => step(1);
-document.getElementById('newer').onclick = () => step(-1);
-geb.addEventListener('click', () => geb.classList.toggle('open')); // tap on touch screens
-let wheelLock = 0;
-geb.addEventListener('wheel', (e) => {
-  if (NAMES.length < 2 || Math.abs(e.deltaY) < 4) return;
-  const d = e.deltaY > 0 ? 1 : -1;
-  if ((d > 0 && current >= NAMES.length - 1) || (d < 0 && current === 0)) return; // let the page scroll at the ends
-  e.preventDefault();
-  if (Date.now() - wheelLock < 450) return;
-  wheelLock = Date.now(); step(d);
-}, { passive: false });
-let touchX = null;
-geb.addEventListener('touchstart', (e) => { touchX = e.touches[0].clientX; }, { passive: true });
-geb.addEventListener('touchend', (e) => {
-  if (touchX == null) return;
-  const dx = e.changedTouches[0].clientX - touchX; touchX = null;
-  if (Math.abs(dx) > 40) step(dx < 0 ? 1 : -1);
-});
-showName(0);
-// unfold once so people discover it, then fold back
-if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
-  setTimeout(() => geb.classList.add('open'), 900);
-  setTimeout(() => { if (!geb.matches(':hover')) geb.classList.remove('open'); }, 4200);
-}
+showName(NAMES[0]);
 
 // The ring turns slowly on its own; drag or swipe to spin it (with momentum).
-// A real mouse hovering pauses it; tapping a cover opens it unless you were dragging.
-function spinRing(stage, ring) {
+// The book at the front decides the club name shown above. A real mouse hovering
+// pauses it; tapping a cover opens it unless you were dragging.
+function spinRing(stage, ring, count, onFront) {
   const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const AUTO = reduce ? 0 : -4;          // degrees per second
+  const AUTO = reduce ? 0 : -4;          // degrees per second (negative = forward in time)
   const DRAG = 0.35;                      // degrees per pixel dragged
-  let angle = 0, vel = AUTO, hovering = false, drag = null, last = performance.now();
+  const STEP = 360 / count;
+  let angle = -(count - 1) * STEP;        // start with the latest book at the front
+  let vel = AUTO, hovering = false, drag = null, target = null, holdUntil = 0, front = -1, last = performance.now();
+  const frontIndex = () => ((Math.round(-angle / STEP) % count) + count) % count;
   const tick = (now) => {
     const dt = Math.min(0.05, (now - last) / 1000); last = now;
-    if (!drag) {
-      const target = hovering ? 0 : AUTO;
-      vel += (target - vel) * Math.min(1, dt / 0.45);  // momentum fades back to the idle speed
+    if (target != null) {
+      angle += (target - angle) * Math.min(1, dt / 0.18);
+      if (Math.abs(target - angle) < 0.05) { angle = target; target = null; vel = 0; }
+    } else if (!drag) {
+      const idle = hovering || now < holdUntil ? 0 : AUTO;
+      vel += (idle - vel) * Math.min(1, dt / 0.45);  // momentum fades back to the idle speed
       angle += vel * dt;
     }
     ring.style.transform = `rotateX(-9deg) rotateY(${angle}deg)`;
+    const f = frontIndex();
+    if (f !== front) { front = f; onFront(f); }
     requestAnimationFrame(tick);
   };
   requestAnimationFrame(tick);
@@ -183,7 +168,7 @@ function spinRing(stage, ring) {
     if (!drag.moved) {
       if (Math.abs(e.clientX - drag.x) < 6) return;
       if (Math.abs(e.clientY - drag.y) > Math.abs(e.clientX - drag.x)) { drag = null; return; } // vertical: let the page scroll
-      drag.moved = true; stage.classList.add('dragging'); try { stage.setPointerCapture(e.pointerId); } catch {}
+      drag.moved = true; target = null; stage.classList.add('dragging'); try { stage.setPointerCapture(e.pointerId); } catch {}
     }
     angle += dx * DRAG;
     const dt = Math.max(8, e.timeStamp - drag.lastT) / 1000;
@@ -205,10 +190,19 @@ function spinRing(stage, ring) {
   stage.addEventListener('pointerup', end);
   stage.addEventListener('pointercancel', (e) => { if (drag && e.pointerId === drag.id) drag = null; stage.classList.remove('dragging'); });
   ring.addEventListener('dragstart', (e) => e.preventDefault());
+
+  // Turn to the next/previous book and stay there a few seconds.
+  return {
+    step(d) {
+      const base = target != null ? target : -Math.round(-angle / STEP) * STEP;
+      target = base - d * STEP;
+      holdUntil = performance.now() + 5000;
+    },
+  };
 }
 
 fetch('/api/public/books').then(r => r.json()).then(books => {
-  BOOKS = books; showName(current);
+  BOOKS = books;
   const stage = document.getElementById('stage'), ring = document.getElementById('ring');
   const n = books.length;
   // radius so neighbouring covers just clear each other
@@ -219,14 +213,32 @@ fetch('/api/public/books').then(r => r.json()).then(books => {
     [...ring.children].forEach((c, i) => { c.style.transform = `rotateY(${(360 / n) * i}deg) translateZ(${r}px)`; });
   };
   const face = (b, cls) => make('span', { className: `face ${cls}` },
-    b.cover_url ? make('img', { src: b.cover_url, alt: '', loading: 'eager', draggable: false }) : make('span', { className: 'blank' }, b.title));
+    b.cover_url ? make('img', { src: b.cover_url, alt: '', loading: 'eager', draggable: false, className: b.cover_url.endsWith('#crop') ? 'crop' : '' }) : make('span', { className: 'blank' }, b.title));
   ring.replaceChildren(...books.map(b => make('a', {
-    className: 'card', href: b.storygraph_url || '/history', target: '_blank', rel: 'noopener',
+    className: 'ring-book', href: b.storygraph_url || '/history', target: '_blank', rel: 'noopener',
     title: `${b.title}${b.author ? ' · ' + b.author : ''}`, ariaLabel: b.title,
   }, face(b, 'front'), face(b, 'back'))));
   place();
   addEventListener('resize', place);
-  spinRing(stage, ring);
+
+  const spin = spinRing(stage, ring, n, (i) => showName(nameFor(books[i].position), books[i]));
+  document.getElementById('older').onclick = () => spin.step(-1);
+  document.getElementById('newer').onclick = () => spin.step(1);
+  // scroll wheel / swipe on the title also turn the ring, one book at a time
+  let wheelLock = 0;
+  geb.addEventListener('wheel', (e) => {
+    if (Math.abs(e.deltaY) < 4) return;
+    e.preventDefault();
+    if (Date.now() - wheelLock < 350) return;
+    wheelLock = Date.now(); spin.step(e.deltaY > 0 ? -1 : 1);
+  }, { passive: false });
+  let touchX = null;
+  geb.addEventListener('touchstart', (e) => { touchX = e.touches[0].clientX; }, { passive: true });
+  geb.addEventListener('touchend', (e) => {
+    if (touchX == null) return;
+    const dx = e.changedTouches[0].clientX - touchX; touchX = null;
+    if (Math.abs(dx) > 40) spin.step(dx < 0 ? 1 : -1);
+  });
 
   const latest = books.at(-1);
   document.getElementById('count').append(
