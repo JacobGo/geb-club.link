@@ -13,13 +13,21 @@
   .geb { font-size: clamp(3.2rem, 11vw, 7.5rem); font-weight: 600; letter-spacing: .02em; margin: 0; line-height: 1;
     display: inline-flex; gap: .12em; cursor: default; user-select: none; }
   .geb .w { display: inline-flex; align-items: baseline; }
+  .geb { flex-wrap: wrap; justify-content: center; }
   .geb .rest { display: inline-block; max-width: 0; overflow: hidden; opacity: 0; font-size: .42em; font-style: italic;
     font-weight: 400; color: var(--muted); transition: max-width .7s ease, opacity .5s ease; white-space: nowrap; }
-  .geb:hover .rest, .geb:focus .rest, .geb.open .rest { max-width: 4.2em; opacity: 1; }
+  .geb:hover .rest, .geb:focus .rest, .geb.open .rest { max-width: 16em; opacity: 1; }
   .geb .w:nth-child(2) .rest { transition-delay: .08s; }
   .geb .w:nth-child(3) .rest { transition-delay: .16s; }
   .geb:focus { outline: none; }
-  .club { display: block; font-size: .95rem; letter-spacing: .5em; text-transform: uppercase; color: var(--muted); margin-top: .6rem; padding-left: .5em; }
+  .geb .w.changed { animation: rotate-in .55s cubic-bezier(.2,.7,.2,1); }
+  @keyframes rotate-in { from { opacity: 0; transform: translateY(.35em) rotateX(70deg); } to { opacity: 1; transform: none; } }
+  .names { display: inline-flex; align-items: center; gap: .9rem; margin-top: .6rem; }
+  .names button { background: none; border: 0; color: var(--muted); font-size: 1.1rem; padding: 0 .3rem; cursor: pointer; }
+  .names button:hover { color: var(--accent); }
+  .names button[hidden] { display: none; }
+  .era { display: block; font-size: .75rem; color: var(--muted); min-height: 1.1em; margin-top: .25rem; font-style: italic; }
+  .club { display: inline-block; font-size: .95rem; letter-spacing: .5em; text-transform: uppercase; color: var(--muted); padding-left: .5em; }
 
   /* the strange loop: every book on a turning ring */
   .stage { --w: 104px; --h: 156px; --r: 380px; height: calc(var(--h) * 2.3); perspective: 1400px; perspective-origin: 50% 30%;
@@ -56,12 +64,13 @@
   <a href="/members/">Members</a>
 </nav></header>
 <main class="home">
-  <h1 class="geb" tabindex="0" aria-label="GEB: Gödel, Escher, Bach">
-    <span class="w">G<span class="rest">ödel</span></span>
-    <span class="w">E<span class="rest">scher</span></span>
-    <span class="w">B<span class="rest">ach</span></span>
-  </h1>
-  <span class="club">Book Club</span>
+  <h1 class="geb" id="geb" tabindex="0"></h1>
+  <div><span class="names">
+    <button type="button" id="older" aria-label="Older club name" hidden>‹</button>
+    <span class="club" id="club"></span>
+    <button type="button" id="newer" aria-label="Newer club name" hidden>›</button>
+  </span></div>
+  <span class="era" id="era"></span>
   <div class="stage" id="stage" aria-label="Books we've read">
     <div class="floor"></div>
     <div class="ring" id="ring"></div>
@@ -70,10 +79,59 @@
 </main>
 <script>
 const make = (tag, props = {}, ...kids) => { const n = Object.assign(document.createElement(tag), props); n.append(...kids); return n; };
-const geb = document.querySelector('.geb');
+// Club names, newest first. One word of G-E-B changes each book.
+// chunks: the G, E and B words (first letter shown large). tail: what follows.
+// book: the history position (#) the name belonged to, shown as "during <title>".
+const NAMES = [
+  { chunks: ['greatandsecretknowledge-', 'esk-', 'bacalao'], tail: 'club' },
+  { chunks: ['gödel ', 'escher ', 'bach'], tail: 'book club', book: 1 },
+];
+let BOOKS = [];
+const geb = document.getElementById('geb');
+let current = 0;
+function showName(i) {
+  const prev = NAMES[current];
+  current = Math.max(0, Math.min(NAMES.length - 1, i));
+  const n = NAMES[current];
+  // only the word that rotated animates; the other two stay put
+  geb.replaceChildren(...n.chunks.map((c, k) => make('span', { className: prev !== n && prev.chunks[k] !== c ? 'w changed' : 'w' },
+    c[0].toUpperCase(), make('span', { className: 'rest' }, c.slice(1)))));
+  geb.setAttribute('aria-label', `${n.chunks.join('')} ${n.tail}`);
+  document.getElementById('club').textContent = n.tail;
+  const era = document.getElementById('era'), book = BOOKS.find((b) => b.position === n.book);
+  era.replaceChildren(current === 0 ? '' : book ? make('span', {}, 'during ', make('cite', {}, book.title)) : 'formerly');
+  document.getElementById('older').hidden = current >= NAMES.length - 1;
+  document.getElementById('newer').hidden = current === 0;
+}
+const step = (d) => { showName(current + d); geb.classList.add('open'); };
+document.getElementById('older').onclick = () => step(1);
+document.getElementById('newer').onclick = () => step(-1);
 geb.addEventListener('click', () => geb.classList.toggle('open')); // tap on touch screens
+let wheelLock = 0;
+geb.addEventListener('wheel', (e) => {
+  if (NAMES.length < 2 || Math.abs(e.deltaY) < 4) return;
+  const d = e.deltaY > 0 ? 1 : -1;
+  if ((d > 0 && current >= NAMES.length - 1) || (d < 0 && current === 0)) return; // let the page scroll at the ends
+  e.preventDefault();
+  if (Date.now() - wheelLock < 450) return;
+  wheelLock = Date.now(); step(d);
+}, { passive: false });
+let touchX = null;
+geb.addEventListener('touchstart', (e) => { touchX = e.touches[0].clientX; }, { passive: true });
+geb.addEventListener('touchend', (e) => {
+  if (touchX == null) return;
+  const dx = e.changedTouches[0].clientX - touchX; touchX = null;
+  if (Math.abs(dx) > 40) step(dx < 0 ? 1 : -1);
+});
+showName(0);
+// unfold once so people discover it, then fold back
+if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
+  setTimeout(() => geb.classList.add('open'), 900);
+  setTimeout(() => { if (!geb.matches(':hover')) geb.classList.remove('open'); }, 4200);
+}
 
 fetch('/api/public/books').then(r => r.json()).then(books => {
+  BOOKS = books; showName(current);
   const stage = document.getElementById('stage'), ring = document.getElementById('ring');
   const n = books.length;
   // radius so neighbouring covers just clear each other
