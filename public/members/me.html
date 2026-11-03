@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>My page · GEB Club</title>
+<link rel="stylesheet" href="/style.css">
+<link rel="icon" href="/favicon.svg">
+</head>
+<body>
+<header class="site"><nav>
+  <a class="brand" href="/">GEB Club</a>
+  <a href="/history">History</a>
+  <a href="/voting">How we vote</a>
+  <a href="/members/">Members</a>
+  <a href="/members/me" aria-current="page">My page</a>
+</nav></header>
+<main id="main"><p class="muted">Loading…</p></main>
+<script type="module">
+import { api, el, bookCard, bookSearch, getMe } from './app.js';
+
+const main = document.getElementById('main');
+let me = null;
+
+const errorLine = () => el('p.error.small', { role: 'alert' });
+const okLine = () => el('p.ok.small', { role: 'status' });
+
+function form(children, fn, msg, ok) {
+  const f = el('form', children, msg, ok);
+  f.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    msg.textContent = ''; if (ok) ok.textContent = '';
+    try { await fn(); if (ok) ok.textContent = 'Saved'; } catch (err) { msg.textContent = err.message; }
+  });
+  return f;
+}
+
+const saveMe = async (body) => { ({ me } = await api('/api/me', { method: 'PATCH', body })); };
+
+function nameSection() {
+  const first = el('input', { id: 'pf-first', maxLength: 40, value: me.first_name ?? '', style: 'width:100%' });
+  const discord = el('input', { id: 'pf-discord', maxLength: 40, value: me.discord ?? '', style: 'width:100%' });
+  const msg = errorLine(), ok = okLine();
+  return [el('h2', 'Name'), form(el('div.row',
+    el('div', el('label', { htmlFor: 'pf-first' }, 'First name'), first),
+    el('div', el('label', { htmlFor: 'pf-discord' }, 'Discord handle'), discord),
+    el('button', 'Save')), async () => {
+    await saveMe({ first_name: first.value, discord: discord.value });
+    document.getElementById('who').textContent = me.name;
+  }, msg, ok)];
+}
+
+function linksSection() {
+  const sg = el('input', { id: 'pf-sg', type: 'url', value: me.storygraph_url ?? '', placeholder: 'https://app.thestorygraph.com/profile/…', style: 'width:100%' });
+  const gr = el('input', { id: 'pf-gr', type: 'url', value: me.goodreads_url ?? '', placeholder: 'https://www.goodreads.com/user/show/…', style: 'width:100%' });
+  const msg = errorLine(), ok = okLine();
+  return [el('h2', 'Profiles'), form([
+    el('label', { htmlFor: 'pf-sg' }, 'StoryGraph'), sg,
+    el('label', { htmlFor: 'pf-gr' }, 'Goodreads'), gr,
+    el('p', el('button', 'Save')),
+  ], () => saveMe({ storygraph_url: sg.value, goodreads_url: gr.value }), msg, ok)];
+}
+
+function favoriteSection(books) {
+  const sel = el('select', { id: 'pf-fav', style: 'width:100%' },
+    el('option', { value: '' }, '—'),
+    books.map((b) => el('option', { value: b.id, selected: b.id === me.favorite_book_id }, `${b.position}. ${b.title}`)));
+  const msg = errorLine(), ok = okLine();
+  return [el('h2', 'Favourite club book'), form(el('div.row',
+    el('div', sel), el('button', 'Save')),
+  () => saveMe({ favorite_book_id: sel.value || null }), msg, ok)];
+}
+
+async function wantSection() {
+  const box = el('div');
+  const render = async () => {
+    const list = await api('/api/me/want-to-read');
+    box.replaceChildren(...(list.length ? list.map((b) => el('div.card', bookCard(b, [
+      el('button.link.small', { type: 'button', onclick: async () => {
+        await api(`/api/me/want-to-read/${b.id}`, { method: 'DELETE' }); render();
+      } }, 'Remove'),
+    ]))) : [el('p.muted', 'Empty')]));
+  };
+  const msg = errorLine();
+  const title = el('input', { id: 'wr-title', required: true, style: 'width:100%' });
+  const author = el('input', { id: 'wr-author', style: 'width:100%' });
+  const search = bookSearch(async (book) => {
+    try { await api('/api/me/want-to-read', { method: 'POST', body: book }); render(); } catch (err) { msg.textContent = err.message; }
+  });
+  const manual = form(el('div.row',
+    el('div', el('label', { htmlFor: 'wr-title' }, 'Title'), title),
+    el('div', el('label', { htmlFor: 'wr-author' }, 'Author'), author),
+    el('button', 'Add')), async () => {
+    await api('/api/me/want-to-read', { method: 'POST', body: { title: title.value, author: author.value } });
+    title.value = ''; author.value = ''; render();
+  }, msg);
+  await render();
+  return [el('h2', 'Want to read'), el('p.muted.small', 'Only you can see this list.'),
+    search, el('details', el('summary.small', 'Add by hand'), manual), box];
+}
+
+async function notesSection(books) {
+  const notes = await api('/api/me/notes');
+  const pick = el('select', { id: 'nt-book', style: 'width:100%' },
+    el('option', { value: '' }, '—'), books.map((b) => el('option', { value: b.id }, `${b.position}. ${b.title}`)));
+  pick.addEventListener('change', () => { if (pick.value) location.href = `/members/book?id=${pick.value}`; });
+  return [el('h2', 'Notes'),
+    el('div.row', el('div', el('label', { htmlFor: 'nt-book' }, 'Write a note on'), pick)),
+    notes.length ? notes.map((n) => el('div.card',
+      el('div', el('a', { href: `/members/book?id=${n.book_id}` }, el('cite', n.title)), el('span.muted', n.author ? ` · ${n.author}` : '')),
+      el('p.small', { style: 'white-space:pre-wrap' }, n.note))) : ''];
+}
+
+function passwordSection() {
+  const pw = el('input', { type: 'password', id: 'pw-new', autocomplete: 'new-password', required: true, style: 'width:100%' });
+  const msg = errorLine(), ok = okLine();
+  const head = el('h2', me.has_password ? 'Password' : 'Password (none set)');
+  return [head, form(el('div.row',
+    el('div', el('label', { htmlFor: 'pw-new' }, 'New password'), pw),
+    el('button', 'Save'),
+    me.has_password && el('button.secondary', { type: 'button', onclick: async () => {
+      if (!confirm('Remove your password?')) return;
+      try { await saveMe({ password: '' }); location.reload(); } catch (err) { msg.textContent = err.message; }
+    } }, 'Remove password')),
+  async () => { await saveMe({ password: pw.value }); pw.value = ''; head.textContent = 'Password'; }, msg, ok)];
+}
+
+async function load() {
+  me = await getMe();
+  if (!me) {
+    main.replaceChildren(el('h1', 'My page'), el('p', el('a', { href: '/members/' }, 'Sign in'), ' first.'));
+    return;
+  }
+  const books = await api('/api/books');
+  const parts = [
+    el('h1', el('span', { id: 'who' }, me.name)),
+    nameSection(), linksSection(), favoriteSection(books),
+    await wantSection(), await notesSection(books), passwordSection(),
+  ];
+  main.replaceChildren(...parts.flat(Infinity).filter(Boolean));
+}
+
+load().catch((err) => main.replaceChildren(el('p.error', err.message)));
+</script>
+</body>
+</html>

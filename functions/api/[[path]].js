@@ -7,6 +7,7 @@ const bad = (msg, status = 400) => json({ error: msg }, status);
 const SIGNED_OUT = () => bad('sign in to your account first', 403);
 const publicMember = (m) => m && {
   id: m.id, name: m.name, first_name: m.first_name, discord: m.discord, has_password: !!m.pw_hash, created_at: m.created_at,
+  storygraph_url: m.storygraph_url, goodreads_url: m.goodreads_url, favorite_book_id: m.favorite_book_id,
 };
 
 // First name and Discord handle are each optional; at least one is required.
@@ -75,7 +76,7 @@ route('GET', '/api/public/books', async ({ db }) =>
   json((await db.prepare('SELECT position, title, author FROM books_read ORDER BY position').all()).results));
 
 route('GET', '/api/books', async ({ db }) =>
-  json((await db.prepare('SELECT * FROM books_read ORDER BY position').all()).results));
+  json((await db.prepare('SELECT b.*, (SELECT COUNT(*) FROM book_notes n WHERE n.book_id = b.id) AS n_notes FROM books_read b ORDER BY position').all()).results));
 
 route('PATCH', '/api/books/:id', async ({ db, params, body }) => {
   const fields = ['title', 'author', 'nominator', 'read_date', 'notes'].filter((f) => f in body);
@@ -87,7 +88,8 @@ route('PATCH', '/api/books/:id', async ({ db, params, body }) => {
 
 // Everyone's list: no password info. (has_password is only shown to the account itself, via /api/me.)
 route('GET', '/api/members', async ({ db }) =>
-  json((await db.prepare('SELECT * FROM members ORDER BY name').all()).results.map(({ id, name, first_name, discord, created_at }) => ({ id, name, first_name, discord, created_at }))));
+  json((await db.prepare(`SELECT m.id, m.name, m.first_name, m.discord, m.created_at, m.storygraph_url, m.goodreads_url,
+      m.favorite_book_id, b.title AS favorite_title FROM members m LEFT JOIN books_read b ON b.id = m.favorite_book_id ORDER BY m.name`).all()).results));
 
 route('GET', '/api/me', ({ me }) => json({ me: publicMember(me) }));
 
@@ -126,12 +128,89 @@ route('PATCH', '/api/me', async ({ env, db, me, body }) => {
         .bind(id.name, id.first_name, id.discord, me.id).first();
     } catch (err) { return bad(takenMessage(err)); }
   }
+  for (const field of ['storygraph_url', 'goodreads_url']) {
+    if (!(field in body)) continue;
+    const link = profileLink(field, body[field]);
+    if (link.error) return bad(link.error);
+    m = await db.prepare(`UPDATE members SET ${field} = ? WHERE id = ? RETURNING *`).bind(link.value, me.id).first();
+  }
+  if ('favorite_book_id' in body) {
+    const fav = body.favorite_book_id == null || body.favorite_book_id === '' ? null : Number(body.favorite_book_id);
+    if (fav != null && !(await db.prepare('SELECT id FROM books_read WHERE id = ?').bind(fav).first())) return bad('no such book');
+    m = await db.prepare('UPDATE members SET favorite_book_id = ? WHERE id = ? RETURNING *').bind(fav, me.id).first();
+  }
   if (typeof body.password === 'string') {
     const { salt, hash } = body.password ? await hashPassword(body.password) : {};
     m = await db.prepare('UPDATE members SET pw_hash = ?, pw_salt = ? WHERE id = ? RETURNING *')
       .bind(hash ?? null, salt ?? null, me.id).first();
   }
   return json({ me: publicMember(m) }, 200, { 'Set-Cookie': await accountCookie(env, m) });
+});
+
+// ------------------------------------------------------------ member center
+
+// Profile links must point at the real sites (also keeps javascript: URLs out).
+const LINK_HOSTS = {
+  storygraph_url: ['app.thestorygraph.com', 'thestorygraph.com'],
+  goodreads_url: ['www.goodreads.com', 'goodreads.com'],
+};
+function profileLink(field, v) {
+  const s = str(v, 300);
+  if (!s) return { value: null };
+  try {
+    const u = new URL(/^https?:\/\//i.test(s) ? s : `https://${s}`);
+    if (u.protocol === 'https:' && LINK_HOSTS[field].includes(u.hostname)) return { value: u.toString() };
+  } catch {}
+  return { error: field === 'storygraph_url' ? 'StoryGraph link must be an app.thestorygraph.com URL' : 'Goodreads link must be a goodreads.com URL' };
+}
+
+route('GET', '/api/me/want-to-read', async ({ db, me }) => {
+  if (!me) return SIGNED_OUT();
+  return json((await db.prepare('SELECT * FROM want_to_read WHERE member_id = ? ORDER BY added_at DESC, id DESC').bind(me.id).all()).results);
+});
+
+route('POST', '/api/me/want-to-read', async ({ db, me, body }) => {
+  const title = str(body.title, 200);
+  if (!title) return bad('title required');
+  const int = (v) => (Number.isInteger(v) ? v : null);
+  const r = await db.prepare(`INSERT INTO want_to_read (member_id, title, author, ol_key, cover_id, year)
+    VALUES (?, ?, ?, ?, ?, ?) RETURNING *`).bind(me.id, title, str(body.author, 200) || null,
+    str(body.ol_key, 60) || null, int(body.cover_id), int(body.year)).first();
+  return json(r, 201);
+});
+
+route('DELETE', '/api/me/want-to-read/:wid', async ({ db, me, params }) => {
+  await db.prepare('DELETE FROM want_to_read WHERE id = ? AND member_id = ?').bind(params.wid, me.id).run();
+  return json({ ok: true });
+});
+
+route('GET', '/api/me/notes', async ({ db, me }) => {
+  if (!me) return SIGNED_OUT();
+  return json((await db.prepare(`SELECT n.book_id, n.note, n.updated_at, b.position, b.title, b.author
+    FROM book_notes n JOIN books_read b ON b.id = n.book_id WHERE n.member_id = ? ORDER BY b.position`).bind(me.id).all()).results);
+});
+
+route('GET', '/api/books/:id', async ({ db, params }) => {
+  const book = await db.prepare('SELECT * FROM books_read WHERE id = ?').bind(params.id).first();
+  if (!book) return bad('no such book', 404);
+  const notes = (await db.prepare(`SELECT n.member_id, m.name, n.note, n.updated_at FROM book_notes n
+    JOIN members m ON m.id = n.member_id WHERE n.book_id = ? ORDER BY n.updated_at`).bind(book.id).all()).results;
+  const favoriteOf = (await db.prepare('SELECT name FROM members WHERE favorite_book_id = ? ORDER BY name').bind(book.id).all()).results.map((r) => r.name);
+  return json({ book, notes, favoriteOf });
+});
+
+// Your note on a past book; empty note deletes it.
+route('PUT', '/api/books/:id/note', async ({ db, me, params, body }) => {
+  const book = await db.prepare('SELECT id FROM books_read WHERE id = ?').bind(params.id).first();
+  if (!book) return bad('no such book', 404);
+  const note = str(body.note, 5000);
+  if (!note) {
+    await db.prepare('DELETE FROM book_notes WHERE member_id = ? AND book_id = ?').bind(me.id, book.id).run();
+  } else {
+    await db.prepare(`INSERT INTO book_notes (member_id, book_id, note) VALUES (?, ?, ?)
+      ON CONFLICT (member_id, book_id) DO UPDATE SET note = excluded.note, updated_at = datetime('now')`).bind(me.id, book.id, note).run();
+  }
+  return json({ ok: true });
 });
 
 // Current debt/weight standings, for transparency.

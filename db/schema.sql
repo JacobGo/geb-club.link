@@ -1,4 +1,6 @@
 -- GEB club schema (Cloudflare D1 / SQLite)
+DROP TABLE IF EXISTS book_notes;
+DROP TABLE IF EXISTS want_to_read;
 DROP TABLE IF EXISTS ballots;
 DROP TABLE IF EXISTS candidates;
 DROP TABLE IF EXISTS elections;
@@ -13,7 +15,10 @@ CREATE TABLE members (
   pw_hash TEXT,        -- NULL = passwordless account
   pw_salt TEXT,
   active INTEGER NOT NULL DEFAULT 1,
-  created_at TEXT
+  created_at TEXT,
+  storygraph_url TEXT,
+  goodreads_url TEXT,
+  favorite_book_id INTEGER REFERENCES books_read(id) ON DELETE SET NULL
 );
 
 CREATE UNIQUE INDEX members_discord ON members (discord COLLATE NOCASE) WHERE discord IS NOT NULL;
@@ -60,4 +65,24 @@ CREATE TABLE ballots (
   scores TEXT NOT NULL, -- JSON {candidateId: 0..5}
   updated_at TEXT NOT NULL DEFAULT (datetime('now')),
   PRIMARY KEY (election_id, member_id)
+);
+
+CREATE TABLE want_to_read (
+  id INTEGER PRIMARY KEY,
+  member_id INTEGER NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  author TEXT,
+  ol_key TEXT,
+  cover_id INTEGER,
+  year INTEGER,
+  added_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX want_to_read_member ON want_to_read (member_id);
+
+CREATE TABLE book_notes (
+  member_id INTEGER NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+  book_id INTEGER NOT NULL REFERENCES books_read(id) ON DELETE CASCADE,
+  note TEXT NOT NULL,
+  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (member_id, book_id)
 );

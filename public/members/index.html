@@ -13,6 +13,7 @@
   <a href="/history">History</a>
   <a href="/voting">How we vote</a>
   <a href="/members/" aria-current="page">Members</a>
+  <a href="/members/me">My page</a>
   <button class="link small" id="logout">Sign out</button>
 </nav></header>
 <main>
@@ -64,27 +65,13 @@ function onSubmit(form, fn, msg) {
 async function renderAccount() {
   const box = document.getElementById('account');
   if (me) {
-    const pw = el('input', { type: 'password', id: 'pw-new', autocomplete: 'new-password', required: true, style: 'width:100%' });
-    const msg = errorLine();
-    const setPw = async (password) => {
-      ({ me } = await api('/api/me', { method: 'PATCH', body: { password } }));
-      renderAccount(); loadMembers();
-    };
     box.replaceChildren(
       el('p', 'Signed in as ', el('strong', me.name), ' · ',
+        el('a', { href: '/members/me' }, 'My page'), ' · ',
         el('button.link', { type: 'button', onclick: async () => {
           await api('/api/accounts/logout', { method: 'POST' });
           me = null; renderAccount(); refreshActions();
-        } }, 'Switch account')),
-      profileForm(),
-      el('details.card',
-        el('summary', me.has_password ? 'Change password' : 'Set a password'),
-        onSubmit(el('form',
-          el('div.row',
-            el('div', el('label', { htmlFor: 'pw-new' }, 'New password'), pw),
-            el('button', 'Save'),
-            me.has_password && el('button.secondary', { type: 'button', onclick: () => setPw('').catch((e) => (msg.textContent = e.message)) }, 'Remove password')),
-          msg), () => setPw(pw.value), msg)));
+        } }, 'Switch account')));
     return;
   }
 
@@ -114,23 +101,6 @@ async function renderAccount() {
         el('button', 'Create')),
       el('p.muted.small', 'First name or Discord handle required.'),
       upMsg), async () => signedIn(await api('/api/accounts', { method: 'POST', body: { first_name: upFirst.value, discord: upDiscord.value, password: upPw.value } })), upMsg)));
-}
-
-function profileForm() {
-  const first = el('input', { id: 'pf-first', maxLength: 40, value: me.first_name ?? '', style: 'width:100%' });
-  const discord = el('input', { id: 'pf-discord', maxLength: 40, value: me.discord ?? '', style: 'width:100%' });
-  const msg = errorLine();
-  return el('details.card',
-    el('summary', 'Edit name'),
-    onSubmit(el('form',
-      el('div.row',
-        el('div', el('label', { htmlFor: 'pf-first' }, 'First name'), first),
-        el('div', el('label', { htmlFor: 'pf-discord' }, 'Discord handle'), discord),
-        el('button', 'Save')),
-      msg), async () => {
-      ({ me } = await api('/api/me', { method: 'PATCH', body: { first_name: first.value, discord: discord.value } }));
-      renderAccount(); loadMembers(); loadStandings();
-    }, msg));
 }
 
 function refreshActions() {
@@ -165,13 +135,14 @@ async function loadStandings() {
 async function loadHistory() {
   const books = await api('/api/books');
   document.getElementById('history').replaceChildren(el('table',
-    el('tr', el('th.num', '#'), el('th', 'Book'), el('th', 'Nominated by'), el('th', 'When'), el('th', 'Notes')),
+    el('tr', el('th.num', '#'), el('th', 'Book'), el('th', 'Nominated by'), el('th', 'When'), el('th', 'Notes'), el('th.num', 'Member notes')),
     books.map((b) => el('tr',
       el('td.num', b.position),
-      el('td', el('cite', b.title), el('div.muted.small', b.author ?? '')),
+      el('td', el('a', { href: `/members/book?id=${b.id}` }, el('cite', b.title)), el('div.muted.small', b.author ?? '')),
       el('td', b.nominator === 'none' ? el('span.muted', '—') : b.nominator ?? ''),
       el('td.small', { style: 'white-space:nowrap' }, b.read_date ?? ''),
-      el('td.small', b.notes ?? '', b.election_id ? [' ', el('a', { href: `/members/election?id=${b.election_id}` }, 'results')] : '')))));
+      el('td.small', b.notes ?? '', b.election_id ? [' ', el('a', { href: `/members/election?id=${b.election_id}` }, 'results')] : ''),
+      el('td.num', b.n_notes ? el('a', { href: `/members/book?id=${b.id}` }, b.n_notes) : '')))));
 }
 
 async function loadMembers() {
@@ -179,10 +150,14 @@ async function loadMembers() {
   const box = document.getElementById('members');
   if (!members.length) { box.replaceChildren(el('p.muted', 'None')); return; }
   box.replaceChildren(el('table',
-    el('tr', el('th', 'First name'), el('th', 'Discord'), el('th', 'Joined')),
+    el('tr', el('th', 'First name'), el('th', 'Discord'), el('th', 'Profiles'), el('th', 'Favourite'), el('th', 'Joined')),
     members.map((m) => el('tr',
       el('td', m.first_name ?? '', me?.id === m.id ? el('span.muted.small', ' (you)') : ''),
       el('td', m.discord ? `@${m.discord}` : ''),
+      el('td.small.links',
+        m.storygraph_url && el('a', { href: m.storygraph_url, target: '_blank', rel: 'noopener' }, 'StoryGraph'),
+        m.goodreads_url && el('a', { href: m.goodreads_url, target: '_blank', rel: 'noopener' }, 'Goodreads')),
+      el('td.small', m.favorite_book_id ? el('a', { href: `/members/book?id=${m.favorite_book_id}` }, el('cite', m.favorite_title)) : ''),
       el('td.small', (m.created_at ?? '').slice(0, 10))))));
 }
 
