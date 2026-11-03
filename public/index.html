@@ -14,7 +14,7 @@
     display: inline-flex; gap: .12em; cursor: default; user-select: none; }
   .geb .w { display: inline-flex; align-items: baseline; }
   .geb { flex-wrap: wrap; justify-content: center; }
-  .geb .rest { display: inline-block; max-width: 0; overflow: hidden; opacity: 0; font-size: .42em; font-style: italic;
+  .geb .rest { display: inline-block; max-width: 0; overflow: hidden; opacity: 0; font-size: calc(.42em * var(--rest-scale, 1)); font-style: italic;
     font-weight: 400; color: var(--muted); transition: max-width .7s ease, opacity .5s ease; white-space: nowrap; }
   .geb:hover .rest, .geb:focus .rest, .geb.open .rest { max-width: 16em; opacity: 1; }
   .geb .w:nth-child(2) .rest { transition-delay: .08s; }
@@ -52,6 +52,7 @@
   .count { color: var(--muted); font-size: .95rem; margin-top: .5rem; }
   .count a { color: inherit; }
 
+  @media (max-width: 640px) { .geb { flex-wrap: nowrap; } }
   @media (max-width: 640px) { .stage { --w: 70px; --h: 105px; --r: 250px; } .club { letter-spacing: .35em; } }
   @media (prefers-reduced-motion: reduce) { .geb .rest { transition: none; } }
 </style>
@@ -125,7 +126,34 @@ function showName(n, book) {
     c[0].toUpperCase(), make('span', { className: 'rest' }, c.slice(1)))));
   geb.setAttribute('aria-label', `${n.chunks.join('')} ${n.tail}`);
   document.getElementById('club').textContent = n.tail;
+  fitName();
 }
+
+// Phones: keep the name on one line by shrinking the lowercase parts to fit.
+// If they would drop below 55%, shrink the whole title instead.
+const phone = matchMedia('(max-width: 640px)');
+function fitName() {
+  geb.style.removeProperty('--rest-scale');
+  geb.style.removeProperty('font-size');
+  if (!phone.matches) return;
+  const box = geb.parentElement, cs = getComputedStyle(box);
+  const avail = box.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) - 4;
+  const restW = [...geb.querySelectorAll('.rest')].reduce((t, r) => t + r.scrollWidth, 0);
+  const total = geb.scrollWidth;
+  if (total <= avail || !restW) return;
+  const fixed = total - restW;  // capitals and gaps
+  let scale = Math.max(0.55, (avail - fixed) / restW);
+  geb.style.setProperty('--rest-scale', scale.toFixed(3));
+  // italic text doesn't shrink exactly in proportion; nudge down until it really fits
+  for (let k = 0; k < 12 && geb.scrollWidth > avail && scale > 0.55; k++) {
+    scale = Math.max(0.55, scale * 0.97);
+    geb.style.setProperty('--rest-scale', scale.toFixed(3));
+  }
+  if (geb.scrollWidth > avail) {
+    geb.style.fontSize = `${parseFloat(getComputedStyle(geb).fontSize) * avail / geb.scrollWidth}px`;
+  }
+}
+addEventListener('resize', fitName);
 showName(NAMES[0]);
 
 // The ring turns slowly on its own; drag or swipe to spin it (with momentum).
@@ -133,11 +161,12 @@ showName(NAMES[0]);
 // pauses it; tapping a cover opens it unless you were dragging.
 function spinRing(stage, ring, count, onFront) {
   const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const AUTO = reduce ? 0 : -4;          // degrees per second (negative = forward in time)
+  const AUTO = reduce ? 0 : 4;           // degrees per second (positive = back in time)
   const DRAG = 0.35;                      // degrees per pixel dragged
   const STEP = 360 / count;
   let angle = -(count - 1) * STEP;        // start with the latest book at the front
-  let vel = AUTO, hovering = false, drag = null, target = null, holdUntil = 0, front = -1, last = performance.now();
+  // linger on the latest book for a few seconds after the page loads
+  let vel = 0, hovering = false, drag = null, target = null, holdUntil = performance.now() + 3000, front = -1, last = performance.now();
   const frontIndex = () => ((Math.round(-angle / STEP) % count) + count) % count;
   const tick = (now) => {
     const dt = Math.min(0.05, (now - last) / 1000); last = now;
