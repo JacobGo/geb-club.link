@@ -73,7 +73,7 @@ route('POST', '/api/logout', () => {
 
 // Public: just the books, in order.
 route('GET', '/api/public/books', async ({ db }) =>
-  json((await db.prepare('SELECT position, title, author FROM books_read ORDER BY position').all()).results));
+  json((await db.prepare('SELECT position, title, author, cover_url, storygraph_url FROM books_read ORDER BY position').all()).results));
 
 route('GET', '/api/books', async ({ db }) =>
   json((await db.prepare('SELECT b.*, (SELECT COUNT(*) FROM book_notes n WHERE n.book_id = b.id) AS n_notes FROM books_read b ORDER BY position').all()).results));
@@ -186,7 +186,7 @@ route('DELETE', '/api/me/want-to-read/:wid', async ({ db, me, params }) => {
 
 route('GET', '/api/me/notes', async ({ db, me }) => {
   if (!me) return SIGNED_OUT();
-  return json((await db.prepare(`SELECT n.book_id, n.note, n.updated_at, b.position, b.title, b.author
+  return json((await db.prepare(`SELECT n.book_id, n.note, n.updated_at, b.position, b.title, b.author, b.cover_url
     FROM book_notes n JOIN books_read b ON b.id = n.book_id WHERE n.member_id = ? ORDER BY b.position`).bind(me.id).all()).results);
 });
 
@@ -218,7 +218,7 @@ route('PUT', '/api/books/:id/note', async ({ db, me, params, body }) => {
 const TIERS = ['S', 'A', 'B', 'C', 'D', 'F', 'N']; // N = didn't read
 
 async function tiersOf(db, memberId) {
-  const rows = (await db.prepare(`SELECT t.tier, t.book_id, b.title, b.author FROM tier_entries t
+  const rows = (await db.prepare(`SELECT t.tier, t.book_id, b.title, b.author, b.cover_url FROM tier_entries t
     JOIN books_read b ON b.id = t.book_id WHERE t.member_id = ? ORDER BY t.position`).bind(memberId).all()).results;
   return Object.fromEntries(TIERS.map((t) => [t, rows.filter((r) => r.tier === t)]));
 }
@@ -248,10 +248,10 @@ route('PUT', '/api/me/tiers', async ({ db, me, body }) => {
 // A member's profile as other members see it (no want-to-read list, no password info).
 route('GET', '/api/members/:id', async ({ db, params }) => {
   const m = await db.prepare(`SELECT m.id, m.name, m.first_name, m.discord, m.created_at, m.storygraph_url, m.goodreads_url,
-      m.favorite_book_id, b.title AS favorite_title FROM members m LEFT JOIN books_read b ON b.id = m.favorite_book_id
+      m.favorite_book_id, b.title AS favorite_title, b.cover_url AS favorite_cover FROM members m LEFT JOIN books_read b ON b.id = m.favorite_book_id
       WHERE m.id = ?`).bind(params.id).first();
   if (!m) return bad('no such member', 404);
-  const notes = (await db.prepare(`SELECT n.book_id, n.note, n.updated_at, b.position, b.title, b.author
+  const notes = (await db.prepare(`SELECT n.book_id, n.note, n.updated_at, b.position, b.title, b.author, b.cover_url
     FROM book_notes n JOIN books_read b ON b.id = n.book_id WHERE n.member_id = ? ORDER BY b.position`).bind(m.id).all()).results;
   return json({ member: m, tiers: await tiersOf(db, m.id), notes });
 });

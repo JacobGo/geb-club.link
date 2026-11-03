@@ -17,7 +17,7 @@
 </nav></header>
 <main id="main"><p class="muted">Loading…</p></main>
 <script type="module">
-import { api, el, tierView, TIERS, getMe } from './app.js';
+import { api, el, tierView, TIERS, getMe, thumb } from './app.js';
 
 const id = new URLSearchParams(location.search).get('id');
 const main = document.getElementById('main');
@@ -32,13 +32,13 @@ async function load() {
     el('h1', m.name),
     me?.id === m.id ? el('p.small', el('a', { href: '/members/me' }, 'Edit')) : '',
     (m.storygraph_url || m.goodreads_url) ? el('p.links', ext(m.storygraph_url, 'StoryGraph'), ext(m.goodreads_url, 'Goodreads')) : '',
-    m.favorite_book_id ? el('p', 'Favourite club book: ', el('a', { href: `/members/book?id=${m.favorite_book_id}` }, el('cite', m.favorite_title))) : '',
+    m.favorite_book_id ? el('p.book', { style: 'align-items:center' }, thumb(m.favorite_cover), el('span', 'Favourite club book: ', el('a', { href: `/members/book?id=${m.favorite_book_id}` }, el('cite', m.favorite_title)))) : '',
     el('h2', 'Tier list'),
     ranked ? tierView(tiers) : el('p.muted', 'None'),
     el('h2', `Notes (${notes.length})`),
     notes.map((n) => el('div.card',
-      el('div', el('a', { href: `/members/book?id=${n.book_id}` }, el('cite', n.title)), el('span.muted', n.author ? ` · ${n.author}` : '')),
-      el('p.small', { style: 'white-space:pre-wrap; margin:.4rem 0 0' }, n.note))),
+      el('div.book', thumb(n.cover_url), el('div.meta', el('a', { href: `/members/book?id=${n.book_id}` }, el('cite', n.title)), el('span.muted', n.author ? ` · ${n.author}` : ''),
+      el('p.small', { style: 'white-space:pre-wrap; margin:.4rem 0 0' }, n.note))))),
   ].flat(Infinity).filter((n) => n != null && n !== ''));
 }
 

@@ -45,7 +45,7 @@
   <div class="table-wrap" id="members"><p class="muted">Loading…</p></div>
 </main>
 <script type="module">
-import { api, el, fmt, pill, logout, getMe } from './app.js';
+import { api, el, fmt, pill, logout, getMe, thumb } from './app.js';
 
 document.getElementById('logout').onclick = logout;
 let me = null;
@@ -135,9 +135,10 @@ async function loadStandings() {
 async function loadHistory() {
   const books = await api('/api/books');
   document.getElementById('history').replaceChildren(el('table',
-    el('tr', el('th.num', '#'), el('th', 'Book'), el('th', 'Nominated by'), el('th', 'When'), el('th', 'Notes'), el('th.num', 'Member notes')),
+    el('tr', el('th.num', '#'), el('th', ''), el('th', 'Book'), el('th', 'Nominated by'), el('th', 'When'), el('th', 'Notes'), el('th.num', 'Member notes')),
     books.map((b) => el('tr',
       el('td.num', b.position),
+      el('td', thumb(b.cover_url)),
       el('td', el('a', { href: `/members/book?id=${b.id}` }, el('cite', b.title)), el('div.muted.small', b.author ?? '')),
       el('td', b.nominator === 'none' ? el('span.muted', '—') : b.nominator ?? ''),
       el('td.small', { style: 'white-space:nowrap' }, b.read_date ?? ''),

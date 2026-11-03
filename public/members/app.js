@@ -32,18 +32,23 @@ export const fmt = (x, d = 2) => (x == null ? '–' : Number(x).toFixed(d).repla
 
 export const coverUrl = (id, size = 'M') => (id ? `https://covers.openlibrary.org/b/id/${id}-${size}.jpg` : null);
 
+/** Small cover image (or an empty placeholder of the same size). */
+export function thumb(url, cls = 'thumb') {
+  return url ? el(`img.${cls}`, { src: url, alt: '', loading: 'lazy', draggable: false }) : el(`span.${cls}.thumb-none`);
+}
+
 export function bookLinks(b) {
   const q = encodeURIComponent([b.title, b.author].filter(Boolean).join(' '));
   // Search by title + author: Open Library's first ISBN is often a foreign edition.
   return el('div.links',
     el('a', { href: `https://www.goodreads.com/search?q=${q}`, target: '_blank', rel: 'noopener' }, 'Goodreads'),
-    el('a', { href: `https://app.thestorygraph.com/browse?search_term=${q}`, target: '_blank', rel: 'noopener' }, 'StoryGraph'),
+    el('a', { href: b.storygraph_url || `https://app.thestorygraph.com/browse?search_term=${q}`, target: '_blank', rel: 'noopener' }, 'StoryGraph'),
     el('a', { href: `https://www.amazon.com/s?k=${q}&i=stripbooks`, target: '_blank', rel: 'noopener' }, 'Amazon'),
     b.ol_key && el('a', { href: `https://openlibrary.org${b.ol_key}`, target: '_blank', rel: 'noopener' }, 'Open Library'));
 }
 
 export function bookCard(b, extra = []) {
-  const img = coverUrl(b.cover_id);
+  const img = b.cover_url || coverUrl(b.cover_id);
   return el('div.book',
     img ? el('img', { src: img, alt: '', loading: 'lazy' }) : el('div.noimg'),
     el('div.meta',
@@ -108,7 +113,8 @@ export async function logout() {
 export const TIERS = ['S', 'A', 'B', 'C', 'D', 'F', 'N'];
 const tierLabel = (t) => (t === 'N' ? "Didn't read" : t);
 
-const chip = (b, editable) => el('span.chip', { 'data-id': b.book_id ?? b.id, tabIndex: editable ? 0 : null, title: b.author ? `${b.title} · ${b.author}` : b.title }, b.title);
+const chip = (b, editable) => el('span.chip', { 'data-id': b.book_id ?? b.id, tabIndex: editable ? 0 : null, title: b.author ? `${b.title} · ${b.author}` : b.title },
+  thumb(b.cover_url, 'chip-cover'), el('span', b.title));
 
 /** Read-only tier list. tiers: { S: [{book_id, title}], ... } */
 export function tierView(tiers) {

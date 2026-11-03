@@ -55,10 +55,13 @@ async function load() {
 
   main.replaceChildren(...[
     el('p.small', el('a', { href: '/members/' }, '← Members')),
-    el('h1', el('cite', book.title)),
-    el('p.muted', [`#${book.position}`, book.author, book.nominator && book.nominator !== 'none' ? `nominated by ${book.nominator}` : null, book.read_date].filter(Boolean).join(' · ')),
-    book.notes ? el('p.small', book.notes) : '',
-    bookLinks(book),
+    el('div.book-head',
+      book.cover_url ? el('img.cover', { src: book.cover_url, alt: '' }) : '',
+      el('div',
+        el('h1', el('cite', book.title)),
+        el('p.muted', [`#${book.position}`, book.author, book.nominator && book.nominator !== 'none' ? `nominated by ${book.nominator}` : null, book.read_date].filter(Boolean).join(' · ')),
+        book.notes ? el('p.small', book.notes) : '',
+        bookLinks(book))),
     favoriteOf.length ? el('p.small', 'Favourite of ', favoriteOf.join(', ')) : '',
     el('h2', `Notes (${notes.length})`),
     others.map(noteCard),

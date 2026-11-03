@@ -105,3 +105,18 @@ label { display: block; margin: .5rem 0 .2rem; font-size: .9rem; color: var(--mu
 .tier-N { border-top: 2px solid var(--rule); }
 .tier-N .tier-label { background: var(--rule); color: var(--muted); font-size: .68rem; font-weight: 600; line-height: 1.15; text-align: center; padding: 0 .2rem; }
 .tier-N .tier-drop { background: var(--paper); }
+
+/* covers */
+.thumb { width: 30px; height: 45px; object-fit: cover; border-radius: 2px; flex: none; display: inline-block; vertical-align: middle; box-shadow: 0 1px 2px rgba(0,0,0,.2); }
+.thumb-none { background: var(--rule); box-shadow: none; }
+.chip { display: inline-flex; align-items: center; gap: .4rem; padding: .2rem .5rem .2rem .25rem; }
+.chip-cover { width: 22px; height: 33px; object-fit: cover; border-radius: 2px; flex: none; }
+.chip-cover.thumb-none { background: var(--rule); display: inline-block; }
+ol.books { list-style: none; padding-left: 0; }
+ol.books li { display: flex; align-items: center; gap: .75rem; padding: .3rem 0; }
+ol.books .pos { color: var(--muted); font-variant-numeric: tabular-nums; min-width: 1.6rem; text-align: right; }
+.book-head { display: flex; gap: 1.25rem; align-items: flex-start; }
+.book-head .cover { width: 110px; height: auto; border-radius: 3px; box-shadow: 0 2px 6px rgba(0,0,0,.25); flex: none; }
+.book-head h1 { margin-top: 0; }
+.book img.thumb { width: 30px; height: 45px; }
+.book .thumb-none { width: 30px; height: 45px; }

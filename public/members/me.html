@@ -17,7 +17,7 @@
 </nav></header>
 <main id="main"><p class="muted">Loading…</p></main>
 <script type="module">
-import { api, el, bookCard, bookSearch, getMe, tierEditor } from './app.js';
+import { api, el, bookCard, bookSearch, getMe, tierEditor, thumb } from './app.js';
 
 const main = document.getElementById('main');
 let me = null;
@@ -124,8 +124,8 @@ async function notesSection(books) {
   return [el('h2', 'Notes'),
     el('div.row', el('div', el('label', { htmlFor: 'nt-book' }, 'Write a note on'), pick)),
     notes.length ? notes.map((n) => el('div.card',
-      el('div', el('a', { href: `/members/book?id=${n.book_id}` }, el('cite', n.title)), el('span.muted', n.author ? ` · ${n.author}` : '')),
-      el('p.small', { style: 'white-space:pre-wrap' }, n.note))) : ''];
+      el('div.book', thumb(n.cover_url), el('div.meta', el('a', { href: `/members/book?id=${n.book_id}` }, el('cite', n.title)), el('span.muted', n.author ? ` · ${n.author}` : ''),
+      el('p.small', { style: 'white-space:pre-wrap' }, n.note))))) : ''];
 }
 
 function passwordSection() {

@@ -32,7 +32,9 @@ CREATE TABLE books_read (
   nominator TEXT,      -- free text: "none", "George/Jacob", ...
   read_date TEXT,      -- YYYY-MM or YYYY-MM-DD, often unknown
   notes TEXT,
-  election_id INTEGER REFERENCES elections(id) ON DELETE SET NULL
+  election_id INTEGER REFERENCES elections(id) ON DELETE SET NULL,
+  storygraph_url TEXT, -- official StoryGraph book page
+  cover_url TEXT
 );
 
 CREATE TABLE elections (
