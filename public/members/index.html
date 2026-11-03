@@ -16,7 +16,7 @@
   <a href="/members/me">My page</a>
   <button class="link small" id="logout">Sign out</button>
 </nav></header>
-<main>
+<main class="wide">
   <h1>Members</h1>
 
   <section id="account"></section>
@@ -39,11 +39,11 @@
   <div class="table-wrap" id="members"><p class="muted">Loading…</p></div>
 
   <h2>History</h2>
-  <div class="table-wrap" id="history"><p class="muted">Loading…</p></div>
+  <ol class="shelf" id="history"><li class="muted">Loading…</li></ol>
 
 </main>
 <script type="module">
-import { api, el, fmt, pill, logout, getMe, thumb } from './app.js';
+import { api, el, fmt, pill, logout, getMe } from './app.js';
 
 document.getElementById('logout').onclick = logout;
 let me = null;
@@ -121,16 +121,16 @@ async function loadElections() {
 
 async function loadHistory() {
   const books = await api('/api/books');
-  document.getElementById('history').replaceChildren(el('table',
-    el('tr', el('th.num', '#'), el('th', ''), el('th', 'Book'), el('th', 'Nominated by'), el('th', 'When'), el('th', 'Notes'), el('th.num', 'Member notes')),
-    books.map((b) => el('tr',
-      el('td.num', b.position),
-      el('td', thumb(b.cover_url)),
-      el('td', el('a', { href: `/members/book?id=${b.id}` }, el('cite', b.title)), el('div.muted.small', b.author ?? '')),
-      el('td', b.nominator === 'none' ? el('span.muted', '—') : b.nominator ?? ''),
-      el('td.small', { style: 'white-space:nowrap' }, b.read_date ?? ''),
-      el('td.small', b.notes ?? '', b.election_id ? [' ', el('a', { href: `/members/election?id=${b.election_id}` }, 'results')] : ''),
-      el('td.num', b.n_notes ? el('a', { href: `/members/book?id=${b.id}` }, b.n_notes) : '')))));
+  document.getElementById('history').replaceChildren(...books.map((b) => el('li',
+    el('a.book-tile', { href: `/members/book?id=${b.id}`, title: b.notes || b.title },
+      el('div.cover-wrap', b.cover_url ? el('img', { src: b.cover_url, alt: '', loading: 'lazy' }) : el('span.no-cover', b.title)),
+      el('div.tile-num', String(b.position)),
+      el('div.tile-title', b.title),
+      el('div.tile-author', b.author ?? ''),
+      el('div.tile-meta', [
+        b.nominator && b.nominator !== 'none' ? `Nominated by ${b.nominator}` : null,
+        b.n_notes ? `${b.n_notes} note${b.n_notes === 1 ? '' : 's'}` : null,
+      ].filter(Boolean).join(' · '))))));
 }
 
 async function loadMembers() {

@@ -14,21 +14,22 @@
   <a href="/voting">How we vote</a>
   <a href="/members/">Members</a>
 </nav></header>
-<main>
+<main class="wide">
   <h1>History</h1>
-  <ol class="books" id="books"><li class="muted">Loading…</li></ol>
+  <ol class="shelf" id="books"><li class="muted">Loading…</li></ol>
 </main>
 <script>
 const make = (tag, props = {}, ...kids) => { const n = Object.assign(document.createElement(tag), props); n.append(...kids); return n; };
+const sgSearch = (b) => `https://app.thestorygraph.com/browse?search_term=${encodeURIComponent([b.title, b.author].filter(Boolean).join(' '))}`;
 fetch('/api/public/books').then(r => r.json()).then(books => {
   document.getElementById('books').replaceChildren(...books.map(b => make('li', {},
-    make('span', { className: 'pos' }, String(b.position)),
-    b.cover_url ? make('img', { className: 'thumb', src: b.cover_url, alt: '', loading: 'lazy' }) : make('span', { className: 'thumb thumb-none' }),
-    make('span', {},
-      make('cite', {}, b.title),
-      make('span', { className: 'author' }, b.author ? ` · ${b.author}` : ''), ' ',
-      make('a', { className: 'small', target: '_blank', rel: 'noopener',
-        href: b.storygraph_url || `https://app.thestorygraph.com/browse?search_term=${encodeURIComponent([b.title, b.author].filter(Boolean).join(' '))}` }, 'StoryGraph')))));
+    make('a', { className: 'book-tile', href: b.storygraph_url || sgSearch(b), target: '_blank', rel: 'noopener',
+        title: `${b.title}${b.author ? ' · ' + b.author : ''} (StoryGraph)` },
+      make('div', { className: 'cover-wrap' },
+        b.cover_url ? make('img', { src: b.cover_url, alt: '', loading: 'lazy' }) : make('span', { className: 'no-cover' }, b.title)),
+      make('div', { className: 'tile-num' }, String(b.position)),
+      make('div', { className: 'tile-title' }, b.title),
+      make('div', { className: 'tile-author' }, b.author || '')))));
 });
 </script>
 </body>
