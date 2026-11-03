@@ -103,3 +103,132 @@ export async function logout() {
   await fetch('/api/logout', { method: 'POST' });
   location.href = '/';
 }
+
+// ---------------------------------------------------------------- tier lists
+export const TIERS = ['S', 'A', 'B', 'C', 'D', 'F'];
+
+const chip = (b, editable) => el('span.chip', { 'data-id': b.book_id ?? b.id, tabIndex: editable ? 0 : null, title: b.author ? `${b.title} · ${b.author}` : b.title }, b.title);
+
+/** Read-only tier list. tiers: { S: [{book_id, title}], ... } */
+export function tierView(tiers) {
+  return el('div.tiers', TIERS.map((t) => el(`div.tier.tier-${t}`,
+    el('div.tier-label', t), el('div.tier-drop', (tiers[t] || []).map((b) => chip(b, false))))));
+}
+
+/**
+ * Editable tier list. Drag books between tiers (mouse or touch), or tap a book then
+ * tap where it should go, or use arrow keys. Left = better within a tier.
+ * onChange({ S: [bookId, ...], ... }) is called after every move.
+ */
+export function tierEditor(books, tiers, onChange) {
+  const placed = new Set(TIERS.flatMap((t) => (tiers[t] || []).map((b) => b.book_id)));
+  const byId = Object.fromEntries(books.map((b) => [b.id, b]));
+  const drops = Object.fromEntries(TIERS.map((t) => [t, el('div.tier-drop', { 'data-tier': t },
+    (tiers[t] || []).filter((b) => byId[b.book_id]).map((b) => chip(byId[b.book_id], true)))]));
+  const pool = el('div.tier-drop.tier-pool', { 'data-tier': '' }, books.filter((b) => !placed.has(b.id)).map((b) => chip(b, true)));
+  const containers = [...TIERS.map((t) => drops[t]), pool];
+  const root = el('div.tier-edit',
+    el('div.tiers', TIERS.map((t) => el(`div.tier.tier-${t}`, el('div.tier-label', t), drops[t]))),
+    el('p.muted.small', 'Unranked'), pool);
+
+  const state = () => Object.fromEntries(TIERS.map((t) => [t, [...drops[t].querySelectorAll('.chip')].map((c) => Number(c.dataset.id))]));
+  const changed = () => onChange(state());
+
+  // Where would a drop at (x, y) land? Returns [container, chipToInsertBefore | null].
+  function target(x, y, ignore) {
+    const under = document.elementFromPoint(x, y);
+    const box = under?.closest('.tier-drop');
+    if (!box || !root.contains(box)) return null;
+    const chips = [...box.querySelectorAll('.chip')].filter((c) => c !== ignore);
+    for (const c of chips) {
+      const r = c.getBoundingClientRect();
+      if (y < r.top) return [box, c];
+      if (y <= r.bottom && x < r.left + r.width / 2) return [box, c];
+    }
+    return [box, null];
+  }
+
+  let selected = null;
+  const select = (c) => {
+    selected?.classList.remove('selected');
+    selected = c === selected ? null : c;
+    selected?.classList.add('selected');
+  };
+
+  root.addEventListener('pointerdown', (e) => {
+    const c = e.target.closest('.chip');
+    if (!c || e.button > 0) return;
+    e.preventDefault();
+    c.focus({ preventScroll: true });
+    const start = { x: e.clientX, y: e.clientY };
+    const rect = c.getBoundingClientRect();
+    let ghost = null, holder = null;
+    c.setPointerCapture(e.pointerId);
+
+    const move = (ev) => {
+      if (!ghost) {
+        if (Math.hypot(ev.clientX - start.x, ev.clientY - start.y) < 6) return;
+        ghost = c.cloneNode(true);
+        ghost.classList.add('ghost');
+        ghost.style.width = `${rect.width}px`;
+        document.body.append(ghost);
+        holder = el('span.chip-placeholder', { style: `height:${rect.height}px` });
+        c.classList.add('dragging');
+        c.after(holder);
+      }
+      ghost.style.left = `${ev.clientX - (start.x - rect.left)}px`;
+      ghost.style.top = `${ev.clientY - (start.y - rect.top)}px`;
+      const t = target(ev.clientX, ev.clientY, c);
+      if (t) {
+        const [box, before] = t;
+        if (before) box.insertBefore(holder, before); else box.append(holder);
+      }
+    };
+    const up = () => {
+      c.removeEventListener('pointermove', move);
+      c.removeEventListener('pointerup', up);
+      c.removeEventListener('pointercancel', up);
+      if (!ghost) {
+        // A tap: select this book, or move the selected book in front of it.
+        if (selected && selected !== c) { c.before(selected); select(selected); changed(); } else select(c);
+        return;
+      }
+      ghost.remove();
+      holder.replaceWith(c);
+      c.classList.remove('dragging');
+      select(null);
+      changed();
+    };
+    c.addEventListener('pointermove', move);
+    c.addEventListener('pointerup', up);
+    c.addEventListener('pointercancel', up);
+  });
+
+  // Tap an empty part of a tier to move the selected book to its end.
+  root.addEventListener('click', (e) => {
+    const box = e.target.closest('.tier-drop');
+    if (!selected || !box || e.target.closest('.chip')) return;
+    box.append(selected);
+    select(selected);
+    changed();
+  });
+
+  // Keyboard: ←/→ move within a tier, ↑/↓ move to the tier above/below.
+  root.addEventListener('keydown', (e) => {
+    const c = e.target.closest('.chip');
+    if (!c) return;
+    const box = c.parentElement;
+    if (e.key === 'ArrowLeft' && c.previousElementSibling) box.insertBefore(c, c.previousElementSibling);
+    else if (e.key === 'ArrowRight' && c.nextElementSibling) c.nextElementSibling.after(c);
+    else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+      const i = containers.indexOf(box) + (e.key === 'ArrowUp' ? -1 : 1);
+      if (i < 0 || i >= containers.length) return;
+      containers[i].append(c);
+    } else return;
+    e.preventDefault();
+    c.focus();
+    changed();
+  });
+
+  return root;
+}

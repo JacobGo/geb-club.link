@@ -17,7 +17,7 @@
 </nav></header>
 <main id="main"><p class="muted">Loading…</p></main>
 <script type="module">
-import { api, el, bookCard, bookSearch, getMe } from './app.js';
+import { api, el, bookCard, bookSearch, getMe, tierEditor } from './app.js';
 
 const main = document.getElementById('main');
 let me = null;
@@ -64,11 +64,28 @@ function linksSection() {
 function favoriteSection(books) {
   const sel = el('select', { id: 'pf-fav', style: 'width:100%' },
     el('option', { value: '' }, '—'),
-    books.map((b) => el('option', { value: b.id, selected: b.id === me.favorite_book_id }, `${b.position}. ${b.title}`)));
+    books.map((b) => el('option', { value: b.id, selected: b.id === me.favorite_book_id }, b.title)));
   const msg = errorLine(), ok = okLine();
   return [el('h2', 'Favourite club book'), form(el('div.row',
     el('div', sel), el('button', 'Save')),
   () => saveMe({ favorite_book_id: sel.value || null }), msg, ok)];
+}
+
+async function tierSection(books) {
+  const { tiers } = await api(`/api/members/${me.id}`);
+  const status = el('span.small.muted', { role: 'status' });
+  let timer;
+  const editor = tierEditor(books, tiers, (state) => {
+    clearTimeout(timer);
+    status.textContent = '';
+    timer = setTimeout(async () => {
+      try { await api('/api/me/tiers', { method: 'PUT', body: { tiers: state } }); status.textContent = 'Saved'; status.className = 'small ok'; }
+      catch (err) { status.textContent = err.message; status.className = 'small error'; }
+    }, 500);
+  });
+  return [el('h2', 'Tier list'),
+    el('p.muted.small', 'Best on the left. ', el('a', { href: `/members/member?id=${me.id}` }, 'View as others see it'), ' ', status),
+    editor];
 }
 
 async function wantSection() {
@@ -102,7 +119,7 @@ async function wantSection() {
 async function notesSection(books) {
   const notes = await api('/api/me/notes');
   const pick = el('select', { id: 'nt-book', style: 'width:100%' },
-    el('option', { value: '' }, '—'), books.map((b) => el('option', { value: b.id }, `${b.position}. ${b.title}`)));
+    el('option', { value: '' }, '—'), books.map((b) => el('option', { value: b.id }, b.title)));
   pick.addEventListener('change', () => { if (pick.value) location.href = `/members/book?id=${pick.value}`; });
   return [el('h2', 'Notes'),
     el('div.row', el('div', el('label', { htmlFor: 'nt-book' }, 'Write a note on'), pick)),
@@ -134,7 +151,7 @@ async function load() {
   const books = await api('/api/books');
   const parts = [
     el('h1', el('span', { id: 'who' }, me.name)),
-    nameSection(), linksSection(), favoriteSection(books),
+    nameSection(), linksSection(), favoriteSection(books), await tierSection(books),
     await wantSection(), await notesSection(books), passwordSection(),
   ];
   main.replaceChildren(...parts.flat(Infinity).filter(Boolean));

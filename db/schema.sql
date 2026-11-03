@@ -1,4 +1,5 @@
 -- GEB club schema (Cloudflare D1 / SQLite)
+DROP TABLE IF EXISTS tier_entries;
 DROP TABLE IF EXISTS book_notes;
 DROP TABLE IF EXISTS want_to_read;
 DROP TABLE IF EXISTS ballots;
@@ -84,5 +85,13 @@ CREATE TABLE book_notes (
   book_id INTEGER NOT NULL REFERENCES books_read(id) ON DELETE CASCADE,
   note TEXT NOT NULL,
   updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (member_id, book_id)
+);
+
+CREATE TABLE tier_entries (
+  member_id INTEGER NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+  book_id INTEGER NOT NULL REFERENCES books_read(id) ON DELETE CASCADE,
+  tier TEXT NOT NULL CHECK (tier IN ('S', 'A', 'B', 'C', 'D', 'F')),
+  position INTEGER NOT NULL,
   PRIMARY KEY (member_id, book_id)
 );

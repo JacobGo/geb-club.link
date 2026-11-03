@@ -81,3 +81,24 @@ label { display: block; margin: .5rem 0 .2rem; font-size: .9rem; color: var(--mu
 
 .bar { height: .55rem; background: var(--accent); border-radius: 3px; min-width: 2px; }
 .winner { font-size: 1.4rem; font-weight: 600; }
+
+/* tier lists */
+.tiers { border: 1px solid var(--rule); border-radius: 8px; overflow: hidden; margin: .5rem 0; }
+.tier { display: flex; min-height: 3rem; border-top: 1px solid var(--rule); }
+.tier:first-child { border-top: 0; }
+.tier-label { flex: 0 0 2.75rem; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 1.15rem; color: #23201b; }
+.tier-S .tier-label { background: #e58f78; }
+.tier-A .tier-label { background: #ebb27a; }
+.tier-B .tier-label { background: #e8d27f; }
+.tier-C .tier-label { background: #bfd48e; }
+.tier-D .tier-label { background: #93c0b3; }
+.tier-F .tier-label { background: #a6a6c4; }
+.tier-drop { flex: 1; display: flex; flex-wrap: wrap; gap: .35rem; padding: .4rem; align-content: flex-start; background: var(--card); }
+.tier-pool { border: 1px dashed var(--rule); border-radius: 8px; min-height: 3rem; }
+.chip { font-size: .85rem; padding: .3rem .55rem; border: 1px solid var(--rule); border-radius: 5px; background: var(--paper); line-height: 1.25; max-width: 14rem; }
+.tier-edit .chip { cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none; }
+.tier-edit .chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.chip.selected { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent); }
+.chip.dragging { opacity: .25; }
+.chip.ghost { position: fixed; pointer-events: none; z-index: 10; cursor: grabbing; box-shadow: 0 4px 12px rgba(0,0,0,.25); }
+.chip-placeholder { width: 4rem; border: 2px dashed var(--accent); border-radius: 5px; }

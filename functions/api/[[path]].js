@@ -213,6 +213,49 @@ route('PUT', '/api/books/:id/note', async ({ db, me, params, body }) => {
   return json({ ok: true });
 });
 
+// ------------------------------------------------------------ tier lists
+
+const TIERS = ['S', 'A', 'B', 'C', 'D', 'F'];
+
+async function tiersOf(db, memberId) {
+  const rows = (await db.prepare(`SELECT t.tier, t.book_id, b.title, b.author FROM tier_entries t
+    JOIN books_read b ON b.id = t.book_id WHERE t.member_id = ? ORDER BY t.position`).bind(memberId).all()).results;
+  return Object.fromEntries(TIERS.map((t) => [t, rows.filter((r) => r.tier === t)]));
+}
+
+// Replace your whole tier list: { tiers: { S: [bookId, ...], A: [...], ... } }, best first.
+route('PUT', '/api/me/tiers', async ({ db, me, body }) => {
+  const input = body.tiers && typeof body.tiers === 'object' ? body.tiers : null;
+  if (!input) return bad('tiers required');
+  const valid = new Set((await db.prepare('SELECT id FROM books_read').all()).results.map((r) => r.id));
+  const seen = new Set();
+  const entries = [];
+  for (const tier of TIERS) {
+    for (const id of Array.isArray(input[tier]) ? input[tier] : []) {
+      if (!valid.has(id) || seen.has(id)) return bad('invalid tier list');
+      seen.add(id);
+      entries.push([tier, id]);
+    }
+  }
+  await db.batch([
+    db.prepare('DELETE FROM tier_entries WHERE member_id = ?').bind(me.id),
+    ...entries.map(([tier, id], i) =>
+      db.prepare('INSERT INTO tier_entries (member_id, book_id, tier, position) VALUES (?, ?, ?, ?)').bind(me.id, id, tier, i)),
+  ]);
+  return json({ ok: true });
+});
+
+// A member's profile as other members see it (no want-to-read list, no password info).
+route('GET', '/api/members/:id', async ({ db, params }) => {
+  const m = await db.prepare(`SELECT m.id, m.name, m.first_name, m.discord, m.created_at, m.storygraph_url, m.goodreads_url,
+      m.favorite_book_id, b.title AS favorite_title FROM members m LEFT JOIN books_read b ON b.id = m.favorite_book_id
+      WHERE m.id = ?`).bind(params.id).first();
+  if (!m) return bad('no such member', 404);
+  const notes = (await db.prepare(`SELECT n.book_id, n.note, n.updated_at, b.position, b.title, b.author
+    FROM book_notes n JOIN books_read b ON b.id = n.book_id WHERE n.member_id = ? ORDER BY b.position`).bind(m.id).all()).results;
+  return json({ member: m, tiers: await tiersOf(db, m.id), notes });
+});
+
 // Current debt/weight standings, for transparency.
 route('GET', '/api/standings', async ({ db }) => {
   const members = (await db.prepare('SELECT id, name FROM members WHERE active = 1 ORDER BY name').all()).results;

@@ -50,7 +50,7 @@ async function load() {
   }
 
   const noteCard = (n) => el('div.card',
-    el('div.small', el('strong', n.name), el('span.muted', ` · ${n.updated_at.slice(0, 10)}`)),
+    el('div.small', el('a', { href: `/members/member?id=${n.member_id}` }, el('strong', n.name)), el('span.muted', ` · ${n.updated_at.slice(0, 10)}`)),
     el('p', { style: 'white-space:pre-wrap; margin:.4rem 0 0' }, n.note));
 
   main.replaceChildren(...[
