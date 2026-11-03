@@ -6,6 +6,47 @@
 <title>GEB Club</title>
 <link rel="stylesheet" href="/style.css">
 <link rel="icon" href="/favicon.svg">
+<style>
+  .home { max-width: 1100px; text-align: center; overflow: hidden; padding-top: 2.5rem; }
+
+  /* GEB -> Gödel Escher Bach */
+  .geb { font-size: clamp(3.2rem, 11vw, 7.5rem); font-weight: 600; letter-spacing: .02em; margin: 0; line-height: 1;
+    display: inline-flex; gap: .12em; cursor: default; user-select: none; }
+  .geb .w { display: inline-flex; align-items: baseline; }
+  .geb .rest { display: inline-block; max-width: 0; overflow: hidden; opacity: 0; font-size: .42em; font-style: italic;
+    font-weight: 400; color: var(--muted); transition: max-width .7s ease, opacity .5s ease; white-space: nowrap; }
+  .geb:hover .rest, .geb:focus .rest, .geb.open .rest { max-width: 4.2em; opacity: 1; }
+  .geb .w:nth-child(2) .rest { transition-delay: .08s; }
+  .geb .w:nth-child(3) .rest { transition-delay: .16s; }
+  .geb:focus { outline: none; }
+  .club { display: block; font-size: .95rem; letter-spacing: .5em; text-transform: uppercase; color: var(--muted); margin-top: .6rem; padding-left: .5em; }
+
+  /* the strange loop: every book on a turning ring */
+  .stage { --w: 104px; --h: 156px; --r: 380px; height: calc(var(--h) * 2.3); perspective: 1400px; perspective-origin: 50% 30%;
+    position: relative; margin-top: 1.5rem; }
+  .floor { position: absolute; left: 50%; top: 62%; width: calc(var(--r) * 2.3); height: calc(var(--r) * .5);
+    transform: translate(-50%, 0); background: radial-gradient(ellipse at center, rgba(0,0,0,.18), transparent 65%); pointer-events: none; }
+  .ring { position: absolute; left: 50%; top: 18%; width: var(--w); height: var(--h); margin-left: calc(var(--w) / -2);
+    transform-style: preserve-3d; transform: rotateX(-9deg) rotateY(0deg); animation: spin 90s linear infinite; }
+  .stage:hover .ring, .stage:focus-within .ring { animation-play-state: paused; }
+  @keyframes spin { to { transform: rotateX(-9deg) rotateY(-360deg); } }
+  .card { position: absolute; inset: 0; transform-style: preserve-3d; display: block; }
+  .card .face { position: absolute; inset: 0; backface-visibility: hidden; border-radius: 3px; overflow: hidden;
+    box-shadow: 0 10px 22px -10px rgba(0,0,0,.55); background: var(--rule); }
+  .card .face img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .card .face.back { transform: rotateY(180deg); filter: brightness(.45) saturate(.7); }
+  .card .face.front { transition: transform .25s ease; }
+  .card:hover .face.front, .card:focus-visible .face.front { transform: translateZ(18px) scale(1.05); }
+  .card:focus-visible { outline: none; }
+  .card:focus-visible .face.front { outline: 2px solid var(--accent); outline-offset: 3px; }
+  .card .blank { display: flex; align-items: center; justify-content: center; padding: .5rem; font-size: .75rem; font-style: italic; color: var(--muted); }
+
+  .count { color: var(--muted); font-size: .95rem; margin-top: .5rem; }
+  .count a { color: inherit; }
+
+  @media (max-width: 640px) { .stage { --w: 70px; --h: 105px; --r: 250px; } .club { letter-spacing: .35em; } }
+  @media (prefers-reduced-motion: reduce) { .ring { animation: none; } .geb .rest { transition: none; } }
+</style>
 </head>
 <body>
 <header class="site"><nav>
@@ -14,14 +55,47 @@
   <a href="/voting">How we vote</a>
   <a href="/members/">Members</a>
 </nav></header>
-<main>
-  <h1>GEB Club</h1>
-  <p id="latest"></p>
+<main class="home">
+  <h1 class="geb" tabindex="0" aria-label="GEB: Gödel, Escher, Bach">
+    <span class="w">G<span class="rest">ödel</span></span>
+    <span class="w">E<span class="rest">scher</span></span>
+    <span class="w">B<span class="rest">ach</span></span>
+  </h1>
+  <span class="club">Book Club</span>
+  <div class="stage" id="stage" aria-label="Books we've read">
+    <div class="floor"></div>
+    <div class="ring" id="ring"></div>
+  </div>
+  <p class="count" id="count"></p>
 </main>
 <script>
+const make = (tag, props = {}, ...kids) => { const n = Object.assign(document.createElement(tag), props); n.append(...kids); return n; };
+const geb = document.querySelector('.geb');
+geb.addEventListener('click', () => geb.classList.toggle('open')); // tap on touch screens
+
 fetch('/api/public/books').then(r => r.json()).then(books => {
-  const b = books.at(-1);
-  if (b) document.getElementById('latest').textContent = `Latest book: ${b.title}, ${b.author}`;
+  const stage = document.getElementById('stage'), ring = document.getElementById('ring');
+  const n = books.length;
+  // radius so neighbouring covers just clear each other
+  const place = () => {
+    const w = parseFloat(getComputedStyle(stage).getPropertyValue('--w'));
+    const r = Math.max(w * 1.15 / 2 / Math.tan(Math.PI / n), w * 2);
+    stage.style.setProperty('--r', `${r}px`);
+    [...ring.children].forEach((c, i) => { c.style.transform = `rotateY(${(360 / n) * i}deg) translateZ(${r}px)`; });
+  };
+  const face = (b, cls) => make('span', { className: `face ${cls}` },
+    b.cover_url ? make('img', { src: b.cover_url, alt: '', loading: 'eager', draggable: false }) : make('span', { className: 'blank' }, b.title));
+  ring.replaceChildren(...books.map(b => make('a', {
+    className: 'card', href: b.storygraph_url || '/history', target: '_blank', rel: 'noopener',
+    title: `${b.title}${b.author ? ' · ' + b.author : ''}`, ariaLabel: b.title,
+  }, face(b, 'front'), face(b, 'back'))));
+  place();
+  addEventListener('resize', place);
+
+  const latest = books.at(-1);
+  document.getElementById('count').append(
+    make('a', { href: '/history' }, `${n} books`), ' · latest: ',
+    make('a', { href: latest?.storygraph_url || '/history', target: '_blank', rel: 'noopener' }, make('cite', {}, latest?.title ?? '')));
 });
 </script>
 </body>
