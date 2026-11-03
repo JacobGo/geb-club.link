@@ -19,13 +19,14 @@
   .geb .w.new, .geb .w.new .rest { color: var(--accent); }
 
   /* GEB -> Gödel Escher Bach */
-  .geb { font-size: clamp(3.2rem, 11vw, 7.5rem); font-weight: 600; letter-spacing: .02em; margin: 0; line-height: 1;
-    display: inline-flex; gap: .12em; cursor: default; user-select: none; }
-  .geb .w { display: inline-flex; align-items: baseline; }
-  .geb { flex-wrap: wrap; justify-content: center; }
-  .geb .rest { display: inline-block; max-width: 0; overflow: hidden; opacity: 0; font-size: calc(.42em * var(--rest-scale, 1)); font-style: italic;
+  /* G, E and B sit at evenly spaced positions: each word gets an equal third and starts at its left edge */
+  .geb { font-size: clamp(3.2rem, 11vw, 7.5rem); font-weight: 600; letter-spacing: .02em; margin: 0 auto; line-height: 1;
+    display: grid; grid-template-columns: repeat(3, 1fr); width: min(100%, 980px); text-align: left; cursor: default; user-select: none; }
+  .geb .w { display: inline-flex; align-items: baseline; min-width: 0; white-space: nowrap; padding-left: 4%; }
+  .geb .rest { display: inline-block; flex-shrink: 0; max-width: 0; overflow: hidden; opacity: 0; font-size: calc(.42em * var(--rest-scale, 1)); font-style: italic;
     font-weight: 400; color: var(--muted); transition: max-width .7s ease, opacity .5s ease; white-space: nowrap; }
   .geb:hover .rest, .geb:focus .rest, .geb.open .rest { max-width: 16em; opacity: 1; }
+  .geb .w.wrap .rest { white-space: normal; line-height: 1.05; align-self: flex-end; }
   .geb .w:nth-child(2) .rest { transition-delay: .08s; }
   .geb .w:nth-child(3) .rest { transition-delay: .16s; }
   .geb:focus { outline: none; }
@@ -62,7 +63,6 @@
   .count { color: var(--muted); font-size: .95rem; margin-top: .5rem; }
   .count a { color: inherit; }
 
-  @media (max-width: 640px) { .geb { flex-wrap: nowrap; } }
   @media (max-width: 640px) { .stage { --w: 70px; --h: 105px; --r: 250px; } .club { letter-spacing: .35em; } }
   @media (prefers-reduced-motion: reduce) { .geb .rest { transition: none; } }
 </style>
@@ -94,9 +94,10 @@ const make = (tag, props = {}, ...kids) => { const n = Object.assign(document.cr
 // Club names, newest first. One word of G-E-B changes each book.
 // chunks: the G, E and B words (first letter shown large). tail: what follows.
 // book: the history position (#) the name belonged to, shown as "during <title>". "…" = word not remembered.
+// "|" marks where a long word may wrap on narrow screens (it is not displayed).
 // Book 5 (Hunt, Gather, Parent): probably "baby".
 const NAMES = [
-  { chunks: ['greatandsecretknowledge-', 'esk-', 'bacalao'], tail: 'club', book: 22 },
+  { chunks: ['great|and|secret|knowledge-', 'esk-', 'bacalao'], tail: 'club', book: 22 },
   { chunks: ['grief ', 'esk ', 'bacalao'], tail: 'club', book: 21 },
   { chunks: ['grief ', 'esk ', 'back2thefuture'], tail: 'club', book: 20 },
   { chunks: ['grief ', 'electronics ', 'back2thefuture'], tail: 'club', book: 19 },
@@ -121,7 +122,8 @@ const NAMES = [
 ];
 let BOOKS = [];
 const geb = document.getElementById('geb');
-const word = (c) => c.replace(/[-\s]+$/, '');
+const plain = (c) => c.replace(/\|/g, '');
+const word = (c) => plain(c).replace(/[-\s]+$/, '');
 const nameFor = (position) => NAMES.find((n) => n.book === position);
 // SOURCES[book][slot] = the book whose round introduced the G / E / B word in use during `book`
 const SOURCES = {};
@@ -140,34 +142,46 @@ function showName(n, book) {
   const prev = shown; shown = n; shownFor = book;
   const src = book ? SOURCES[book.position] : null;
   geb.replaceChildren(...n.chunks.map((c, k) => make('span', { className: ['w', prev && prev !== n && word(prev.chunks[k]) !== word(c) ? 'changed' : '', src && src[k] === book.position ? 'new' : ''].join(' ').trim() },
-    c[0].toUpperCase(), make('span', { className: 'rest' }, c.slice(1)))));
-  geb.setAttribute('aria-label', `${n.chunks.join('')} ${n.tail}`);
+    c[0].toUpperCase(), make('span', { className: 'rest' }, ...c.slice(1).split('|').flatMap((part, j) => (j ? [document.createElement('wbr'), part] : [part]))))));
+  geb.setAttribute('aria-label', `${n.chunks.map(plain).join('')} ${n.tail}`);
   document.getElementById('club').textContent = n.tail;
   fitName();
 }
 
-// Phones: keep the name on one line by shrinking the lowercase parts to fit.
-// If they would drop below 55%, shrink the whole title instead.
-const phone = matchMedia('(max-width: 640px)');
+// Each word must fit in its third of the title, so G, E and B stay evenly spaced.
+// A word that is too long shrinks its own lowercase part (down to 45%); if it still
+// doesn't fit, its lowercase wraps (at the | marks) inside its third, no taller than the capital.
+const MIN_SCALE = 0.45;
 function fitName() {
-  geb.style.removeProperty('--rest-scale');
-  geb.style.removeProperty('font-size');
-  if (!phone.matches) return;
-  const box = geb.parentElement, cs = getComputedStyle(box);
-  const avail = box.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) - 4;
-  const restW = [...geb.querySelectorAll('.rest')].reduce((t, r) => t + r.scrollWidth, 0);
-  const total = geb.scrollWidth;
-  if (total <= avail || !restW) return;
-  const fixed = total - restW;  // capitals and gaps
-  let scale = Math.max(0.55, (avail - fixed) / restW);
-  geb.style.setProperty('--rest-scale', scale.toFixed(3));
-  // italic text doesn't shrink exactly in proportion; nudge down until it really fits
-  for (let k = 0; k < 12 && geb.scrollWidth > avail && scale > 0.55; k++) {
-    scale = Math.max(0.55, scale * 0.97);
-    geb.style.setProperty('--rest-scale', scale.toFixed(3));
-  }
-  if (geb.scrollWidth > avail) {
-    geb.style.fontSize = `${parseFloat(getComputedStyle(geb).fontSize) * avail / geb.scrollWidth}px`;
+  const words = [...geb.querySelectorAll('.w')];
+  const col = geb.clientWidth / 3;
+  for (const w of words) {
+    const rest = w.querySelector('.rest');
+    rest.style.transition = 'none';  // measure final sizes, not mid-animation ones
+    requestAnimationFrame(() => requestAnimationFrame(() => rest.style.removeProperty('transition')));
+    w.style.removeProperty('--rest-scale');
+    w.classList.remove('wrap');
+    rest.style.removeProperty('max-width');
+    if (w.scrollWidth <= col + 0.5) continue;
+    const fixed = w.scrollWidth - rest.scrollWidth;  // capital + padding
+    let scale = Math.max(MIN_SCALE, Math.min(1, (col - fixed) / rest.scrollWidth));
+    w.style.setProperty('--rest-scale', scale.toFixed(3));
+    // italic text doesn't shrink exactly in proportion; nudge down until it really fits
+    for (let k = 0; k < 14 && w.scrollWidth > col + 0.5 && scale > MIN_SCALE; k++) {
+      scale = Math.max(MIN_SCALE, scale * 0.97);
+      w.style.setProperty('--rest-scale', scale.toFixed(3));
+    }
+    if (w.scrollWidth > col + 0.5) {
+      // wrap at the marked break points, then use the largest size whose lines stay within
+      // the height of the capital letter
+      w.classList.add('wrap');
+      const capH = parseFloat(getComputedStyle(geb).fontSize) * 0.95;
+      for (scale = 1; scale >= 0.3; scale *= 0.95) {  // on the narrowest screens, shrink rather than clip
+        w.style.setProperty('--rest-scale', scale.toFixed(3));
+        rest.style.maxWidth = `${Math.max(20, col - fixed - 2)}px`;
+        if (w.scrollWidth <= col + 0.5 && rest.scrollWidth <= rest.clientWidth + 0.5 && rest.offsetHeight <= capH) break;
+      }
+    }
   }
 }
 addEventListener('resize', fitName);
