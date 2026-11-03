@@ -13,7 +13,7 @@ export const METHODS = {
 // tallies; closed elections keep the snapshot stored in their result.
 export const DEBT_PARAMS = {
   beta: 1.0,     // how strongly debt moves your weight
-  decay: 0.75,   // each round, old debt is multiplied by this
+  decay: 0.85,   // each round, old debt is multiplied by this (debt halves in ~4 rounds)
   floor: 0.3,    // minimum debt multiplier, so nobody's vote shrinks below 30%
   newcomerAttendance: 0.6, // attendance factor for a first-time voter
   rampRounds: 4, // rounds attended to reach full attendance factor (1.0)
