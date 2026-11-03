@@ -34,7 +34,7 @@ async function load() {
     me?.id === m.id ? el('p.small', el('a', { href: '/members/me' }, 'Edit')) : '',
     (m.storygraph_url || m.goodreads_url) ? el('p.links', ext(m.storygraph_url, 'StoryGraph'), ext(m.goodreads_url, 'Goodreads')) : '',
     st ? el('p.small.muted', `Vote weight ${fmt(st.weight)} · debt ${fmt(st.debt)} · attendance ${fmt(st.attendance)} · elections voted ${st.voted}`) : '',
-    m.favorite_book_id ? el('p.book', { style: 'align-items:center' }, thumb(m.favorite_cover), el('span', 'Favourite club book: ', el('a', { href: `/members/book?id=${m.favorite_book_id}` }, el('cite', m.favorite_title)))) : '',
+    m.favorite_book_id ? el('p.book', { style: 'align-items:center' }, thumb(m.favorite_cover), el('span', 'Favorite club book: ', el('a', { href: `/members/book?id=${m.favorite_book_id}` }, el('cite', m.favorite_title)))) : '',
     el('h2', 'Tier list'),
     ranked ? tierView(tiers) : el('p.muted', 'None'),
     el('h2', `Notes (${notes.length})`),

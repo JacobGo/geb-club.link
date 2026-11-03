@@ -1,4 +1,4 @@
--- 2026-11-02: member center. Profile links, favourite club book, private want-to-read
+-- 2026-11-02: member center. Profile links, favorite club book, private want-to-read
 -- list, and notes on past books (visible to all members).
 ALTER TABLE members ADD COLUMN storygraph_url TEXT;
 ALTER TABLE members ADD COLUMN goodreads_url TEXT;

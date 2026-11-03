@@ -62,7 +62,7 @@ async function load() {
         el('p.muted', [`#${book.position}`, book.author, book.nominator && book.nominator !== 'none' ? `nominated by ${book.nominator}` : null, book.read_date].filter(Boolean).join(' · ')),
         book.notes ? el('p.small', book.notes) : '',
         bookLinks(book))),
-    favoriteOf.length ? el('p.small', 'Favourite of ', favoriteOf.join(', ')) : '',
+    favoriteOf.length ? el('p.small', 'Favorite of ', favoriteOf.join(', ')) : '',
     el('h2', `Notes (${notes.length})`),
     others.map(noteCard),
     mine ? noteCard(mine) : '',
