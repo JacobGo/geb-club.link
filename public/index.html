@@ -82,7 +82,7 @@ const make = (tag, props = {}, ...kids) => { const n = Object.assign(document.cr
 // Club names, newest first. One word of G-E-B changes each book.
 // chunks: the G, E and B words (first letter shown large). tail: what follows.
 // book: the history position (#) the name belonged to, shown as "during <title>". "…" = word not remembered.
-// Book 5 (Hunt, Gather, Parent): word unknown, and assumed to have rotated the B.
+// Book 5 (Hunt, Gather, Parent): probably "baby".
 // Book 16 (Heir to the Empire): a G word, not remembered.
 const NAMES = [
   { chunks: ['greatandsecretknowledge-', 'esk-', 'bacalao'], tail: 'club', book: 22 },
@@ -91,8 +91,8 @@ const NAMES = [
   { chunks: ['grief ', 'electronics ', 'back2thefuture'], tail: 'club', book: 19 },
   { chunks: ['g… ', 'electronics ', 'back2thefuture'], tail: 'club', book: 18 },
   { chunks: ['g… ', 'electronics ', 'byzantine'], tail: 'club', book: 17 },
-  { chunks: ['g… ', 'ecumenical ', 'byzantine'], tail: 'club', book: 16 },
-  { chunks: ['gospel ', 'ecumenical ', 'byzantine'], tail: 'club', book: 15 },
+  { chunks: ['g… ', 'ekumenical ', 'byzantine'], tail: 'club', book: 16 },
+  { chunks: ['gospel ', 'ekumenical ', 'byzantine'], tail: 'club', book: 15 },
   { chunks: ['gospel ', 'erogenous ', 'byzantine'], tail: 'club', book: 14 },
   { chunks: ['garlic ', 'erogenous ', 'byzantine'], tail: 'club', book: 13 },
   { chunks: ['garlic ', 'erogenous ', 'bromance'], tail: 'club', book: 12 },
@@ -101,8 +101,8 @@ const NAMES = [
   { chunks: ['ghostwriter ', 'enlightenment ', 'business'], tail: 'club', book: 9 },
   { chunks: ['ghostwriter ', 'espionage ', 'business'], tail: 'club', book: 8 },
   { chunks: ['guardship ', 'espionage ', 'business'], tail: 'club', book: 7 },
-  { chunks: ['guardship ', 'espionage ', 'b…'], tail: 'club', book: 6 },
-  { chunks: ['gathering ', 'espionage ', 'b…'], tail: 'club', book: 5 },
+  { chunks: ['guardship ', 'espionage ', 'baby'], tail: 'club', book: 6 },
+  { chunks: ['gathering ', 'espionage ', 'baby'], tail: 'club', book: 5 },
   { chunks: ['gathering ', 'espionage ', 'baru'], tail: 'club', book: 4 },
   { chunks: ['gathering ', 'escher ', 'baru'], tail: 'club', book: 3 },
   { chunks: ['gödel ', 'escher ', 'baru'], tail: 'club', book: 2 },
