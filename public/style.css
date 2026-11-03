@@ -139,3 +139,7 @@ main.wide { max-width: 980px; }
 .shelf .tile-author { color: var(--muted); font-size: .88rem; line-height: 1.3; margin-top: .15rem; }
 .shelf .tile-meta { color: var(--muted); font-size: .78rem; margin-top: .3rem; }
 @media (max-width: 520px) { .shelf { grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 1.6rem .9rem; } .shelf .tile-author { font-size: .8rem; } }
+
+/* covers marked #crop: scans with extra margin, trimmed to the 2:3 book shape */
+.shelf .cover-wrap img.crop { width: 100%; height: 100%; object-fit: cover; }
+.book-head .cover.crop { aspect-ratio: 2 / 3; object-fit: cover; }

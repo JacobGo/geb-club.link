@@ -26,7 +26,7 @@ fetch('/api/public/books').then(r => r.json()).then(books => {
     make('a', { className: 'book-tile', href: b.storygraph_url || sgSearch(b), target: '_blank', rel: 'noopener',
         title: `${b.title}${b.author ? ' · ' + b.author : ''} (StoryGraph)` },
       make('div', { className: 'cover-wrap' },
-        b.cover_url ? make('img', { src: b.cover_url, alt: '', loading: 'lazy' }) : make('span', { className: 'no-cover' }, b.title)),
+        b.cover_url ? make('img', { src: b.cover_url, alt: '', loading: 'lazy', className: b.cover_url.endsWith('#crop') ? 'crop' : '' }) : make('span', { className: 'no-cover' }, b.title)),
       make('div', { className: 'tile-num' }, String(b.position)),
       make('div', { className: 'tile-title' }, b.title),
       make('div', { className: 'tile-author' }, b.author || '')))));

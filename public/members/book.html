@@ -56,7 +56,7 @@ async function load() {
   main.replaceChildren(...[
     el('p.small', el('a', { href: '/members/' }, '← Members')),
     el('div.book-head',
-      book.cover_url ? el('img.cover', { src: book.cover_url, alt: '' }) : '',
+      book.cover_url ? el('img.cover', { src: book.cover_url, alt: '', className: book.cover_url.endsWith('#crop') ? 'cover crop' : 'cover' }) : '',
       el('div',
         el('h1', el('cite', book.title)),
         el('p.muted', [`#${book.position}`, book.author, book.nominator && book.nominator !== 'none' ? `nominated by ${book.nominator}` : null, book.read_date].filter(Boolean).join(' · ')),

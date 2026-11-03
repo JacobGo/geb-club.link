@@ -123,7 +123,7 @@ async function loadHistory() {
   const books = await api('/api/books');
   document.getElementById('history').replaceChildren(...books.map((b) => el('li',
     el('a.book-tile', { href: `/members/book?id=${b.id}`, title: b.notes || b.title },
-      el('div.cover-wrap', b.cover_url ? el('img', { src: b.cover_url, alt: '', loading: 'lazy' }) : el('span.no-cover', b.title)),
+      el('div.cover-wrap', b.cover_url ? el('img', { src: b.cover_url, alt: '', loading: 'lazy', className: b.cover_url.endsWith('#crop') ? 'crop' : '' }) : el('span.no-cover', b.title)),
       el('div.tile-num', String(b.position)),
       el('div.tile-title', b.title),
       el('div.tile-author', b.author ?? ''),

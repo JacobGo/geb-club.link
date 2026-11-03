@@ -1,10 +1,10 @@
 -- Cover images and official StoryGraph pages for books read. Safe to re-run.
 -- Covers: Penguin Random House (images.penguinrandomhouse.com/cover/<ISBN>) for the editions
--- the club picked; Open Library otherwise.
+-- the club picked; Open Library otherwise. A #crop suffix trims a scan with extra margins to 2:3.
 UPDATE books_read SET cover_url = 'https://covers.openlibrary.org/b/id/14368453-L.jpg', storygraph_url = 'https://app.thestorygraph.com/books/7afddb73-0d19-4698-9047-0b7572fffccc' WHERE position = 1; -- Gödel, Escher, Bach
 UPDATE books_read SET cover_url = 'https://covers.openlibrary.org/b/id/10496793-L.jpg', storygraph_url = 'https://app.thestorygraph.com/books/299846e6-b438-4c45-ab0d-25593b7bef28' WHERE position = 2; -- The Traitor Baru Cormorant
 UPDATE books_read SET cover_url = 'https://covers.openlibrary.org/b/id/10286212-L.jpg', storygraph_url = 'https://app.thestorygraph.com/books/f2a8c0d1-2e6b-4e44-b6a4-83dfa871bbf2' WHERE position = 3; -- The Art of Gathering
-UPDATE books_read SET cover_url = 'https://covers.openlibrary.org/b/id/7913176-L.jpg', storygraph_url = 'https://app.thestorygraph.com/books/1e07075f-bbe5-4280-b1ac-109b756fe091' WHERE position = 4; -- The Sympathizer
+UPDATE books_read SET cover_url = 'https://covers.openlibrary.org/b/id/7913176-L.jpg#crop', storygraph_url = 'https://app.thestorygraph.com/books/1e07075f-bbe5-4280-b1ac-109b756fe091' WHERE position = 4; -- The Sympathizer
 UPDATE books_read SET cover_url = 'https://covers.openlibrary.org/b/id/10827516-L.jpg', storygraph_url = 'https://app.thestorygraph.com/books/13dc501c-2a71-4bda-9b18-bc315c081c6c' WHERE position = 5; -- Hunt, Gather, Parent
 UPDATE books_read SET cover_url = 'https://covers.openlibrary.org/b/id/2000859-L.jpg', storygraph_url = 'https://app.thestorygraph.com/books/4ac0d893-3114-45c0-addd-17a69e3cb8c1' WHERE position = 6; -- The Dragon Never Sleeps
 UPDATE books_read SET cover_url = 'https://covers.openlibrary.org/b/id/10332879-L.jpg', storygraph_url = 'https://app.thestorygraph.com/books/8d991b00-ceaa-4fed-a7a2-ae9407cc512b' WHERE position = 7; -- Ask Iwata
