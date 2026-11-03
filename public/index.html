@@ -31,13 +31,12 @@
 
   /* the strange loop: every book on a turning ring */
   .stage { --w: 104px; --h: 156px; --r: 380px; height: calc(var(--h) * 2.3); perspective: 1400px; perspective-origin: 50% 30%;
-    position: relative; margin-top: 1.5rem; }
+    position: relative; margin-top: 1.5rem; touch-action: pan-y; cursor: grab; user-select: none; -webkit-user-select: none; }
+  .stage.dragging { cursor: grabbing; }
   .floor { position: absolute; left: 50%; top: 62%; width: calc(var(--r) * 2.3); height: calc(var(--r) * .5);
     transform: translate(-50%, 0); background: radial-gradient(ellipse at center, rgba(0,0,0,.18), transparent 65%); pointer-events: none; }
   .ring { position: absolute; left: 50%; top: 18%; width: var(--w); height: var(--h); margin-left: calc(var(--w) / -2);
-    transform-style: preserve-3d; transform: rotateX(-9deg) rotateY(0deg); animation: spin 90s linear infinite; }
-  .stage:hover .ring, .stage:focus-within .ring { animation-play-state: paused; }
-  @keyframes spin { to { transform: rotateX(-9deg) rotateY(-360deg); } }
+    transform-style: preserve-3d; transform: rotateX(-9deg) rotateY(0deg); will-change: transform; }
   .card { position: absolute; inset: 0; transform-style: preserve-3d; display: block; }
   .card .face { position: absolute; inset: 0; backface-visibility: hidden; border-radius: 3px; overflow: hidden;
     box-shadow: 0 10px 22px -10px rgba(0,0,0,.55); background: var(--rule); }
@@ -53,7 +52,7 @@
   .count a { color: inherit; }
 
   @media (max-width: 640px) { .stage { --w: 70px; --h: 105px; --r: 250px; } .club { letter-spacing: .35em; } }
-  @media (prefers-reduced-motion: reduce) { .ring { animation: none; } .geb .rest { transition: none; } }
+  @media (prefers-reduced-motion: reduce) { .geb .rest { transition: none; } }
 </style>
 </head>
 <body>
@@ -153,6 +152,61 @@ if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
   setTimeout(() => { if (!geb.matches(':hover')) geb.classList.remove('open'); }, 4200);
 }
 
+// The ring turns slowly on its own; drag or swipe to spin it (with momentum).
+// A real mouse hovering pauses it; tapping a cover opens it unless you were dragging.
+function spinRing(stage, ring) {
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const AUTO = reduce ? 0 : -4;          // degrees per second
+  const DRAG = 0.35;                      // degrees per pixel dragged
+  let angle = 0, vel = AUTO, hovering = false, drag = null, last = performance.now();
+  const tick = (now) => {
+    const dt = Math.min(0.05, (now - last) / 1000); last = now;
+    if (!drag) {
+      const target = hovering ? 0 : AUTO;
+      vel += (target - vel) * Math.min(1, dt / 0.45);  // momentum fades back to the idle speed
+      angle += vel * dt;
+    }
+    ring.style.transform = `rotateX(-9deg) rotateY(${angle}deg)`;
+    requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+
+  stage.addEventListener('pointerenter', (e) => { if (e.pointerType === 'mouse') hovering = true; });
+  stage.addEventListener('pointerleave', (e) => { if (e.pointerType === 'mouse') hovering = false; });
+  stage.addEventListener('pointerdown', (e) => {
+    if (e.button > 0) return;
+    drag = { id: e.pointerId, x: e.clientX, y: e.clientY, lastX: e.clientX, lastT: e.timeStamp, moved: false, v: 0 };
+  });
+  stage.addEventListener('pointermove', (e) => {
+    if (!drag || e.pointerId !== drag.id) return;
+    const dx = e.clientX - drag.lastX;
+    if (!drag.moved) {
+      if (Math.abs(e.clientX - drag.x) < 6) return;
+      if (Math.abs(e.clientY - drag.y) > Math.abs(e.clientX - drag.x)) { drag = null; return; } // vertical: let the page scroll
+      drag.moved = true; stage.classList.add('dragging'); try { stage.setPointerCapture(e.pointerId); } catch {}
+    }
+    angle += dx * DRAG;
+    const dt = Math.max(8, e.timeStamp - drag.lastT) / 1000;
+    drag.v = 0.7 * drag.v + 0.3 * (dx * DRAG / dt);
+    drag.lastX = e.clientX; drag.lastT = e.timeStamp;
+  });
+  const end = (e) => {
+    if (!drag || e.pointerId !== drag.id) return;
+    if (drag.moved) {
+      vel = Math.max(-220, Math.min(220, drag.v));  // a hard flick coasts at most ~100 degrees
+      // swallow the click that follows a drag so it does not open a cover
+      const swallow = (c) => { c.preventDefault(); c.stopPropagation(); };
+      stage.addEventListener('click', swallow, { capture: true, once: true });
+      setTimeout(() => stage.removeEventListener('click', swallow, { capture: true }), 80);
+      setTimeout(() => stage.classList.remove('dragging'), 0);
+    }
+    drag = null;
+  };
+  stage.addEventListener('pointerup', end);
+  stage.addEventListener('pointercancel', (e) => { if (drag && e.pointerId === drag.id) drag = null; stage.classList.remove('dragging'); });
+  ring.addEventListener('dragstart', (e) => e.preventDefault());
+}
+
 fetch('/api/public/books').then(r => r.json()).then(books => {
   BOOKS = books; showName(current);
   const stage = document.getElementById('stage'), ring = document.getElementById('ring');
@@ -172,6 +226,7 @@ fetch('/api/public/books').then(r => r.json()).then(books => {
   }, face(b, 'front'), face(b, 'back'))));
   place();
   addEventListener('resize', place);
+  spinRing(stage, ring);
 
   const latest = books.at(-1);
   document.getElementById('count').append(
