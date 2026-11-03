@@ -41,6 +41,6 @@ Don't edit `db/schema.sql` alone. Add a new numbered file in `db/migrations/` wi
 
 ## Pull requests
 
-Open a PR against `main`. Run `npm test` before you do. Jake reviews, merges and deploys.
+Open a PR against `main`. Run `npm test` before you do. Jake reviews, merges and deploys (`npm run deploy` builds `dist/` with cache-busted asset links, then uploads it).
 
 Don't commit real member names, Discord handles or ballot data. The detailed history is members-only and isn't in this repo.

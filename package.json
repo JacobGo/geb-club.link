@@ -6,7 +6,8 @@
     "dev": "wrangler pages dev --port 8788",
     "db:init:local": "wrangler d1 execute geb-club --local --file=db/schema.sql && wrangler d1 execute geb-club --local --file=db/seed.sql",
     "test": "node --test \"test/**/*.test.js\"",
-    "deploy": "wrangler pages deploy public --project-name geb-club --branch main"
+    "build": "node scripts/build.mjs",
+    "deploy": "node scripts/build.mjs && wrangler pages deploy dist --project-name geb-club --branch main"
   },
   "devDependencies": {
     "wrangler": "^4.156.2"
