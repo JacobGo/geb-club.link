@@ -13,7 +13,6 @@
   <a href="/history">History</a>
   <a href="/voting">How we vote</a>
   <a href="/members/" aria-current="page">Members</a>
-  <a href="/members/me">My page</a>
   <button class="link small" id="logout">Sign out</button>
 </nav></header>
 <main class="wide">
@@ -68,7 +67,7 @@ async function renderAccount() {
         el('a', { href: '/members/me' }, 'My page'), ' · ',
         el('button.link', { type: 'button', onclick: async () => {
           await api('/api/accounts/logout', { method: 'POST' });
-          me = null; renderAccount(); refreshActions();
+          me = null; dispatchEvent(new CustomEvent('geb:account', { detail: null })); renderAccount(); refreshActions();
         } }, 'Switch account')));
     return;
   }
@@ -82,7 +81,7 @@ async function renderAccount() {
   const upDiscord = el('input', { id: 'su-discord', maxLength: 40, autocomplete: 'username', style: 'width:100%' });
   const upPw = el('input', { type: 'password', id: 'su-pw', autocomplete: 'new-password', style: 'width:100%' });
 
-  const signedIn = (r) => { me = r.me; renderAccount(); refreshActions(); loadMembers(); };
+  const signedIn = (r) => { me = r.me; dispatchEvent(new CustomEvent('geb:account', { detail: me })); renderAccount(); refreshActions(); loadMembers(); };
   box.replaceChildren(
     members.length ? el('div.card', el('h3', 'Sign in'), onSubmit(el('form',
       el('div.row',
@@ -163,5 +162,6 @@ me = await getMe();
 renderAccount(); refreshActions();
 loadElections(); loadHistory(); loadMembers();
 </script>
+<script src="/nav.js" defer></script>
 </body>
 </html>

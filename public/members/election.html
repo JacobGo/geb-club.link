@@ -13,7 +13,6 @@
   <a href="/history">History</a>
   <a href="/voting">How we vote</a>
   <a href="/members/" aria-current="page">Members</a>
-  <a href="/members/me">My page</a>
 </nav></header>
 <main id="main"><p class="muted">Loading…</p></main>
 <script type="module">
@@ -195,5 +194,6 @@ function results(e, candidates, ballots) {
 
 load().catch((err) => main.replaceChildren(el('p.error', err.message)));
 </script>
+<script src="/nav.js" defer></script>
 </body>
 </html>

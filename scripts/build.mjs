@@ -7,7 +7,7 @@ import { cpSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } fr
 import { join } from 'node:path';
 
 const SRC = 'public', OUT = 'dist';
-const STAMPED = ['/style.css', '/favicon.svg'];
+const STAMPED = ['/style.css', '/favicon.svg', '/nav.js'];
 
 rmSync(OUT, { recursive: true, force: true });
 cpSync(SRC, OUT, { recursive: true });
