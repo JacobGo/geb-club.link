@@ -84,15 +84,14 @@ const make = (tag, props = {}, ...kids) => { const n = Object.assign(document.cr
 // chunks: the G, E and B words (first letter shown large). tail: what follows.
 // book: the history position (#) the name belonged to, shown as "during <title>". "…" = word not remembered.
 // Book 5 (Hunt, Gather, Parent): probably "baby".
-// Book 16 (Heir to the Empire): a G word, not remembered.
 const NAMES = [
   { chunks: ['greatandsecretknowledge-', 'esk-', 'bacalao'], tail: 'club', book: 22 },
   { chunks: ['grief ', 'esk ', 'bacalao'], tail: 'club', book: 21 },
   { chunks: ['grief ', 'esk ', 'back2thefuture'], tail: 'club', book: 20 },
   { chunks: ['grief ', 'electronics ', 'back2thefuture'], tail: 'club', book: 19 },
-  { chunks: ['g… ', 'electronics ', 'back2thefuture'], tail: 'club', book: 18 },
-  { chunks: ['g… ', 'electronics ', 'byzantine'], tail: 'club', book: 17 },
-  { chunks: ['g… ', 'ekumenical ', 'byzantine'], tail: 'club', book: 16 },
+  { chunks: ['galaxy ', 'electronics ', 'back2thefuture'], tail: 'club', book: 18 },
+  { chunks: ['galaxy ', 'electronics ', 'byzantine'], tail: 'club', book: 17 },
+  { chunks: ['galaxy ', 'ekumenical ', 'byzantine'], tail: 'club', book: 16 },
   { chunks: ['gospel ', 'ekumenical ', 'byzantine'], tail: 'club', book: 15 },
   { chunks: ['gospel ', 'erogenous ', 'byzantine'], tail: 'club', book: 14 },
   { chunks: ['garlic ', 'erogenous ', 'byzantine'], tail: 'club', book: 13 },
@@ -173,6 +172,7 @@ function spinRing(stage, ring, count, onFront) {
     if (target != null) {
       angle += (target - angle) * Math.min(1, dt / 0.18);
       if (Math.abs(target - angle) < 0.05) { angle = target; target = null; vel = 0; }
+      if (target != null) holdUntil = Math.max(holdUntil, now + 50);
     } else if (!drag) {
       const idle = hovering || now < holdUntil ? 0 : AUTO;
       vel += (idle - vel) * Math.min(1, dt / 0.45);  // momentum fades back to the idle speed
@@ -180,7 +180,13 @@ function spinRing(stage, ring, count, onFront) {
     }
     ring.style.transform = `rotateX(-9deg) rotateY(${angle}deg)`;
     const f = frontIndex();
-    if (f !== front) { front = f; onFront(f); }
+    if (f !== front) {
+      front = f; onFront(f);
+      // every time the drift reaches the latest book, settle on it for a few seconds
+      if (f === count - 1 && !drag && target == null && Math.abs(vel) <= Math.abs(AUTO) + 0.5 && AUTO) {
+        target = -Math.round(-angle / STEP) * STEP; holdUntil = now + 3000 + 400;
+      }
+    }
     requestAnimationFrame(tick);
   };
   requestAnimationFrame(tick);
