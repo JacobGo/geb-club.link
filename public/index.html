@@ -182,8 +182,8 @@ function spinRing(stage, ring, count, onFront) {
     const f = frontIndex();
     if (f !== front) {
       front = f; onFront(f);
-      // every time the drift reaches the latest book, settle on it for a few seconds
-      if (f === count - 1 && !drag && target == null && Math.abs(vel) <= Math.abs(AUTO) + 0.5 && AUTO) {
+      // the page opens on the latest book; after that, the drift settles on GEB (the first book) each loop
+      if (f === 0 && !drag && target == null && Math.abs(vel) <= Math.abs(AUTO) + 0.5 && AUTO) {
         target = -Math.round(-angle / STEP) * STEP; holdUntil = now + 3000 + 400;
       }
     }
