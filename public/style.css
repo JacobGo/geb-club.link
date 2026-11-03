@@ -102,3 +102,6 @@ label { display: block; margin: .5rem 0 .2rem; font-size: .9rem; color: var(--mu
 .chip.dragging { opacity: .25; }
 .chip.ghost { position: fixed; pointer-events: none; z-index: 10; cursor: grabbing; box-shadow: 0 4px 12px rgba(0,0,0,.25); }
 .chip-placeholder { width: 4rem; border: 2px dashed var(--accent); border-radius: 5px; }
+.tier-N { border-top: 2px solid var(--rule); }
+.tier-N .tier-label { background: var(--rule); color: var(--muted); font-size: .68rem; font-weight: 600; line-height: 1.15; text-align: center; padding: 0 .2rem; }
+.tier-N .tier-drop { background: var(--paper); }

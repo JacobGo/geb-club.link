@@ -105,14 +105,15 @@ export async function logout() {
 }
 
 // ---------------------------------------------------------------- tier lists
-export const TIERS = ['S', 'A', 'B', 'C', 'D', 'F'];
+export const TIERS = ['S', 'A', 'B', 'C', 'D', 'F', 'N'];
+const tierLabel = (t) => (t === 'N' ? "Didn't read" : t);
 
 const chip = (b, editable) => el('span.chip', { 'data-id': b.book_id ?? b.id, tabIndex: editable ? 0 : null, title: b.author ? `${b.title} · ${b.author}` : b.title }, b.title);
 
 /** Read-only tier list. tiers: { S: [{book_id, title}], ... } */
 export function tierView(tiers) {
   return el('div.tiers', TIERS.map((t) => el(`div.tier.tier-${t}`,
-    el('div.tier-label', t), el('div.tier-drop', (tiers[t] || []).map((b) => chip(b, false))))));
+    el('div.tier-label', tierLabel(t)), el('div.tier-drop', (tiers[t] || []).map((b) => chip(b, false))))));
 }
 
 /**
@@ -128,7 +129,7 @@ export function tierEditor(books, tiers, onChange) {
   const pool = el('div.tier-drop.tier-pool', { 'data-tier': '' }, books.filter((b) => !placed.has(b.id)).map((b) => chip(b, true)));
   const containers = [...TIERS.map((t) => drops[t]), pool];
   const root = el('div.tier-edit',
-    el('div.tiers', TIERS.map((t) => el(`div.tier.tier-${t}`, el('div.tier-label', t), drops[t]))),
+    el('div.tiers', TIERS.map((t) => el(`div.tier.tier-${t}`, el('div.tier-label', tierLabel(t)), drops[t]))),
     el('p.muted.small', 'Unranked'), pool);
 
   const state = () => Object.fromEntries(TIERS.map((t) => [t, [...drops[t].querySelectorAll('.chip')].map((c) => Number(c.dataset.id))]));

@@ -215,7 +215,7 @@ route('PUT', '/api/books/:id/note', async ({ db, me, params, body }) => {
 
 // ------------------------------------------------------------ tier lists
 
-const TIERS = ['S', 'A', 'B', 'C', 'D', 'F'];
+const TIERS = ['S', 'A', 'B', 'C', 'D', 'F', 'N']; // N = didn't read
 
 async function tiersOf(db, memberId) {
   const rows = (await db.prepare(`SELECT t.tier, t.book_id, b.title, b.author FROM tier_entries t
