@@ -17,13 +17,14 @@
 </nav></header>
 <main id="main"><p class="muted">Loading…</p></main>
 <script type="module">
-import { api, el, tierView, TIERS, getMe, thumb } from './app.js';
+import { api, el, tierView, TIERS, getMe, thumb, fmt } from './app.js';
 
 const id = new URLSearchParams(location.search).get('id');
 const main = document.getElementById('main');
 
 async function load() {
-  const [{ member: m, tiers, notes }, me] = await Promise.all([api(`/api/members/${id}`), getMe()]);
+  const [{ member: m, tiers, notes }, me, { members: standings }] = await Promise.all([api(`/api/members/${id}`), getMe(), api('/api/standings')]);
+  const st = standings.find((x) => x.id === m.id);
   document.title = `${m.name} · GEB Club`;
   const ext = (href, label) => href && el('a', { href, target: '_blank', rel: 'noopener' }, label);
   const ranked = TIERS.some((t) => tiers[t].length);
@@ -32,6 +33,7 @@ async function load() {
     el('h1', m.name),
     me?.id === m.id ? el('p.small', el('a', { href: '/members/me' }, 'Edit')) : '',
     (m.storygraph_url || m.goodreads_url) ? el('p.links', ext(m.storygraph_url, 'StoryGraph'), ext(m.goodreads_url, 'Goodreads')) : '',
+    st ? el('p.small.muted', `Vote weight ${fmt(st.weight)} · debt ${fmt(st.debt)} · attendance ${fmt(st.attendance)} · elections voted ${st.voted}`) : '',
     m.favorite_book_id ? el('p.book', { style: 'align-items:center' }, thumb(m.favorite_cover), el('span', 'Favourite club book: ', el('a', { href: `/members/book?id=${m.favorite_book_id}` }, el('cite', m.favorite_title)))) : '',
     el('h2', 'Tier list'),
     ranked ? tierView(tiers) : el('p.muted', 'None'),

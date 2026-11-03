@@ -35,14 +35,12 @@
     </form>
   </details>
 
-  <h2>Vote weights</h2>
-  <div class="table-wrap" id="standings"><p class="muted">Loading…</p></div>
+  <h2>Members</h2>
+  <div class="table-wrap" id="members"><p class="muted">Loading…</p></div>
 
   <h2>History</h2>
   <div class="table-wrap" id="history"><p class="muted">Loading…</p></div>
 
-  <h2>Accounts</h2>
-  <div class="table-wrap" id="members"><p class="muted">Loading…</p></div>
 </main>
 <script type="module">
 import { api, el, fmt, pill, logout, getMe, thumb } from './app.js';
@@ -84,7 +82,7 @@ async function renderAccount() {
   const upDiscord = el('input', { id: 'su-discord', maxLength: 40, autocomplete: 'username', style: 'width:100%' });
   const upPw = el('input', { type: 'password', id: 'su-pw', autocomplete: 'new-password', style: 'width:100%' });
 
-  const signedIn = (r) => { me = r.me; renderAccount(); refreshActions(); loadMembers(); loadStandings(); };
+  const signedIn = (r) => { me = r.me; renderAccount(); refreshActions(); loadMembers(); };
   box.replaceChildren(
     members.length ? el('div.card', el('h3', 'Sign in'), onSubmit(el('form',
       el('div.row',
@@ -121,17 +119,6 @@ async function loadElections() {
         : `${e.n_candidates} books · ${e.n_ballots} ballots · ${methods[e.method] ?? e.method}`))));
 }
 
-async function loadStandings() {
-  const { members } = await api('/api/standings');
-  const box = document.getElementById('standings');
-  if (!members.length) { box.replaceChildren(el('p.muted', 'None')); return; }
-  box.replaceChildren(el('table',
-    el('tr', el('th', 'Member'), el('th.num', 'Debt'), el('th.num', 'Elections voted'), el('th.num', 'Attendance'), el('th.num', 'Weight')),
-    [...members].sort((a, b) => b.weight - a.weight).map((m) => el('tr',
-      el('td', m.name), el('td.num', m.newcomer ? el('span.muted', `new (${fmt(m.debt)})`) : fmt(m.debt)),
-      el('td.num', fmt(m.roundsSeen, 1)), el('td.num', fmt(m.attendance)), el('td.num', el('strong', fmt(m.weight)))))));
-}
-
 async function loadHistory() {
   const books = await api('/api/books');
   document.getElementById('history').replaceChildren(el('table',
@@ -147,19 +134,20 @@ async function loadHistory() {
 }
 
 async function loadMembers() {
-  const members = await api('/api/members');
+  const [members, { members: standings }] = await Promise.all([api('/api/members'), api('/api/standings')]);
   const box = document.getElementById('members');
   if (!members.length) { box.replaceChildren(el('p.muted', 'None')); return; }
+  const st = Object.fromEntries(standings.map((x) => [x.id, x]));
   box.replaceChildren(el('table',
-    el('tr', el('th', 'First name'), el('th', 'Discord'), el('th', 'Profiles'), el('th', 'Favourite'), el('th', 'Joined')),
-    members.map((m) => el('tr',
-      el('td', m.first_name ? el('a', { href: `/members/member?id=${m.id}` }, m.first_name) : '', me?.id === m.id ? el('span.muted.small', ' (you)') : ''),
-      el('td', m.discord ? (m.first_name ? `@${m.discord}` : el('a', { href: `/members/member?id=${m.id}` }, `@${m.discord}`)) : ''),
+    el('tr', el('th', 'Member'), el('th', 'Favourite'), el('th', 'Profiles'), el('th.num', 'Debt'), el('th.num', 'Weight')),
+    [...members].sort((a, b) => (st[b.id]?.weight ?? 0) - (st[a.id]?.weight ?? 0) || a.name.localeCompare(b.name)).map((m) => el('tr',
+      el('td', el('a', { href: `/members/member?id=${m.id}` }, m.name), me?.id === m.id ? el('span.muted.small', ' (you)') : ''),
+      el('td.small', m.favorite_book_id ? el('a', { href: `/members/book?id=${m.favorite_book_id}` }, el('cite', m.favorite_title)) : ''),
       el('td.small.links',
         m.storygraph_url && el('a', { href: m.storygraph_url, target: '_blank', rel: 'noopener' }, 'StoryGraph'),
         m.goodreads_url && el('a', { href: m.goodreads_url, target: '_blank', rel: 'noopener' }, 'Goodreads')),
-      el('td.small', m.favorite_book_id ? el('a', { href: `/members/book?id=${m.favorite_book_id}` }, el('cite', m.favorite_title)) : ''),
-      el('td.small', (m.created_at ?? '').slice(0, 10))))));
+      el('td.num', st[m.id] ? fmt(st[m.id].debt) : ''),
+      el('td.num', st[m.id] ? el('strong', fmt(st[m.id].weight)) : '')))));
 }
 
 document.getElementById('new-election').addEventListener('submit', async (e) => {
@@ -173,7 +161,7 @@ document.getElementById('new-election').addEventListener('submit', async (e) => 
 
 me = await getMe();
 renderAccount(); refreshActions();
-loadElections(); loadStandings(); loadHistory(); loadMembers();
+loadElections(); loadHistory(); loadMembers();
 </script>
 </body>
 </html>

@@ -268,7 +268,8 @@ route('GET', '/api/members/:id', async ({ db, params }) => {
 
 // Current debt/weight standings, for transparency.
 route('GET', '/api/standings', async ({ db }) => {
-  const members = (await db.prepare('SELECT id, name FROM members WHERE active = 1 ORDER BY name').all()).results;
+  const members = (await db.prepare(`SELECT m.id, m.name, (SELECT COUNT(*) FROM ballots b JOIN elections e ON e.id = b.election_id
+      WHERE b.member_id = m.id AND e.status = 'closed') AS voted FROM members m WHERE m.active = 1 ORDER BY m.name`).all()).results;
   const st = await debtState(db);
   const ids = members.map((m) => String(m.id));
   const debts = debtsFor(st, ids), weights = weightsFor(st, ids);
@@ -276,7 +277,7 @@ route('GET', '/api/standings', async ({ db }) => {
     params: DEBT_PARAMS,
     members: members.map((m) => {
       const k = String(m.id);
-      return { id: m.id, name: m.name, debt: debts[k], newcomer: !(k in st.debt), roundsSeen: st.seen[k] ?? 0,
+      return { id: m.id, name: m.name, debt: debts[k], newcomer: !(k in st.debt), voted: m.voted,
         attendance: attendance(st, k), weight: weights[k] };
     }),
   });
