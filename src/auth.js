@@ -20,7 +20,7 @@ function safeEqual(a, b) {
 }
 
 export async function isMember(request, env) {
-  const m = (request.headers.get('Cookie') || '').match(new RegExp(`(?:^|;\s*)${COOKIE}=([0-9a-f]+)`));
+  const m = (request.headers.get('Cookie') || '').match(new RegExp(`(?:^|;\\s*)${COOKIE}=([0-9a-f]+)`));
   return !!m && safeEqual(m[1], await token(env));
 }
 
