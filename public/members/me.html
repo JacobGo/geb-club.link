@@ -128,7 +128,8 @@ function exportSection(books) {
         api('/api/me/want-to-read'),
       ]);
 
-      const TIER_RATING = { S: 5, A: 4, B: 3, C: 2, D: 1, F: 0 };
+      // Goodreads ratings are 1-5 (0 means unrated), so D and F both become 1
+      const TIER_RATING = { S: 5, A: 4, B: 3, C: 2, D: 1, F: 1 };
       const tierMap = {};
       for (const [tier, entries] of Object.entries(tiers)) {
         for (const e of entries) tierMap[e.book_id] = tier;
@@ -156,11 +157,12 @@ function exportSection(books) {
 
       for (const book of books) {
         const tier = tierMap[book.id];
-        if (tier === 'N') continue;
-        const rating = tier != null ? (TIER_RATING[tier] ?? 0) : 0;
+        // only books on your tier list count as read (not "didn't read", not unranked)
+        const rating = TIER_RATING[tier];
+        if (!rating) continue;
         const dateRead = grDate(book.read_date);
         rows.push([
-          book.id, book.title, book.author || '', '', '', '', '',
+          '', book.title, book.author || '', '', '', '', '',
           rating, '', '', '', '', '', '',
           dateRead, dateRead, 'read', 'read (#1)', 'read', '', '', '', 1, 0,
         ]);
