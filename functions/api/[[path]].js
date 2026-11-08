@@ -267,6 +267,52 @@ route('PUT', '/api/me/tiers', async ({ db, me, body }) => {
   return json({ ok: true });
 });
 
+// Everyone's tier lists at once, for the club tier list and taste map.
+route('GET', '/api/tiers', async ({ db }) => {
+  const books = withCovers((await db.prepare('SELECT id, position, title, author, cover_url FROM books_read ORDER BY position').all()).results);
+  const members = (await db.prepare(`SELECT id, name, first_name FROM members
+    WHERE id IN (SELECT DISTINCT member_id FROM tier_entries) ORDER BY name`).all()).results;
+  const entries = (await db.prepare('SELECT member_id, book_id, tier FROM tier_entries ORDER BY member_id, position').all()).results;
+  return json({ books, members, entries });
+});
+
+// ------------------------------------------------------------ tags (on /members/almanac)
+
+const tagsAll = async (db) => ({
+  tags: (await db.prepare('SELECT t.id, t.name, t.created_by, m.name AS created_by_name FROM tags t LEFT JOIN members m ON m.id = t.created_by ORDER BY t.name').all()).results,
+  book_tags: (await db.prepare('SELECT bt.book_id, bt.tag_id, bt.tagged_by, m.name AS tagged_by_name FROM book_tags bt LEFT JOIN members m ON m.id = bt.tagged_by').all()).results,
+});
+
+route('GET', '/api/tags', async ({ db }) => json(await tagsAll(db)));
+
+route('POST', '/api/tags', async ({ db, me, body }) => {
+  const name = str(body.name, 40).replace(/\s+/g, ' ');
+  if (!name) return bad('enter a tag');
+  const found = await db.prepare('SELECT id FROM tags WHERE name = ?').bind(name).first();
+  if (!found) await db.prepare('INSERT INTO tags (name, created_by) VALUES (?, ?)').bind(name, me.id).run();
+  return json(await tagsAll(db));
+});
+
+route('DELETE', '/api/tags/:id', async ({ db, params }) => {
+  await db.batch([
+    db.prepare('DELETE FROM book_tags WHERE tag_id = ?').bind(params.id),
+    db.prepare('DELETE FROM tags WHERE id = ?').bind(params.id),
+  ]);
+  return json(await tagsAll(db));
+});
+
+route('PUT', '/api/books/:id/tags/:tag', async ({ db, me, params }) => {
+  const ok = await db.prepare('SELECT (SELECT 1 FROM books_read WHERE id = ?) AS b, (SELECT 1 FROM tags WHERE id = ?) AS t').bind(params.id, params.tag).first();
+  if (!ok?.b || !ok?.t) return bad('no such book or tag', 404);
+  await db.prepare('INSERT OR IGNORE INTO book_tags (book_id, tag_id, tagged_by) VALUES (?, ?, ?)').bind(params.id, params.tag, me.id).run();
+  return json(await tagsAll(db));
+});
+
+route('DELETE', '/api/books/:id/tags/:tag', async ({ db, params }) => {
+  await db.prepare('DELETE FROM book_tags WHERE book_id = ? AND tag_id = ?').bind(params.id, params.tag).run();
+  return json(await tagsAll(db));
+});
+
 // A member's profile as other members see it (no want-to-read list, no password info).
 route('GET', '/api/members/:id', async ({ db, params }) => {
   const m = await db.prepare(`SELECT m.id, m.name, m.first_name, m.discord, m.created_at, m.storygraph_url, m.goodreads_url,

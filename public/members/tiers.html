@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Club tier list · GEB Club</title>
+<link rel="stylesheet" href="/style.css">
+<link rel="icon" href="/favicon.svg">
+<style>
+  /* One hue, dark (S) to light (F): tiers are an order, so they get a sequential ramp.
+     Mixed from the accent, so dark mode gets its own steps for free. */
+  :root {
+    --t-S: color-mix(in oklab, var(--accent) 50%, var(--ink));
+    --t-A: var(--accent);
+    --t-B: color-mix(in oklab, var(--accent) 66%, var(--card));
+    --t-C: color-mix(in oklab, var(--accent) 44%, var(--card));
+    --t-D: color-mix(in oklab, var(--accent) 27%, var(--card));
+    --t-F: color-mix(in oklab, var(--accent) 16%, var(--card));
+  }
+  .legend { display: flex; gap: .9rem; flex-wrap: wrap; align-items: center; font-size: .82rem; color: var(--muted); margin: .4rem 0 .8rem; }
+  .legend span { display: inline-flex; align-items: center; gap: .3rem; }
+  .legend i { width: .8rem; height: .8rem; border-radius: 3px; display: inline-block; }
+
+  .dist { display: flex; gap: 2px; height: 14px; min-width: 6rem; }
+  .dist span { border-radius: 2px; min-width: 3px; }
+  .dist span:first-child { border-radius: 4px 2px 2px 4px; }
+  .dist span:last-child { border-radius: 2px 4px 4px 2px; }
+  .dist span:only-child { border-radius: 4px; }
+  .dist span:hover, .dist span:focus-visible { outline: 2px solid var(--ink); outline-offset: 1px; }
+
+  .divisive { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: .8rem; }
+  .divisive .card { margin: 0; display: flex; gap: .8rem; align-items: flex-start; }
+  .divisive img, .divisive .noimg { width: 52px; flex: none; border-radius: 3px; box-shadow: 0 1px 3px rgba(0,0,0,.25); }
+  .divisive .noimg { height: 78px; background: var(--rule); }
+  .divisive .meta { flex: 1; min-width: 0; }
+  .divisive .dist { margin: .45rem 0 .3rem; }
+  .divisive .why { font-size: .82rem; color: var(--muted); }
+
+  table.books td { vertical-align: middle; }
+  table.books th button { all: unset; cursor: pointer; }
+  table.books th button:hover, table.books th button:focus-visible { color: var(--accent); }
+  table.books th[aria-sort] button::after { content: ' ↓'; }
+  table.books th[aria-sort="ascending"] button::after { content: ' ↑'; }
+  table.books .dist-cell { width: 40%; }
+  .tierchip { display: inline-block; min-width: 1.5rem; text-align: center; font-weight: 700; font-size: .85rem; border-radius: 4px; padding: 0 .3rem; border: 1px solid var(--rule); }
+
+  /* agreement grid */
+  .twins { display: grid; gap: 2px; font-size: .78rem; margin-top: .6rem; }
+  .twins .hd { color: var(--muted); padding: .2rem .3rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; align-self: end; }
+  .twins .hd:not(.col) { align-self: center; }
+  .twins .col { writing-mode: vertical-rl; transform: rotate(180deg); text-align: left; max-height: 8rem; justify-self: center; }
+  .twins .cell { aspect-ratio: 1; display: flex; align-items: center; justify-content: center; border-radius: 4px; font-variant-numeric: tabular-nums; min-width: 0; }
+  .twins .cell.self { background: transparent; border: 1px dashed var(--rule); }
+  .twins .cell.none { background: transparent; color: var(--muted); }
+  .twins .cell:hover, .twins .cell:focus-visible { outline: 2px solid var(--ink); outline-offset: 1px; }
+  .scale { display: flex; align-items: center; gap: .5rem; font-size: .78rem; color: var(--muted); margin-top: .6rem; }
+  .scale .bar { height: 10px; width: 10rem; border-radius: 4px; background: linear-gradient(to right, color-mix(in oklab, var(--accent) 8%, var(--card)), var(--accent)); }
+
+  .tip { position: fixed; z-index: 50; pointer-events: none; background: var(--ink); color: var(--paper); font-size: .82rem; line-height: 1.35;
+    padding: .4rem .6rem; border-radius: 6px; max-width: 18rem; box-shadow: 0 6px 18px rgba(0,0,0,.25); }
+  .tip[hidden] { display: none; }
+  @media (max-width: 640px) { table.books .hide-sm { display: none; } .twins { font-size: .62rem; } }
+</style>
+</head>
+<body>
+<header class="site"><nav>
+  <a class="brand" href="/" aria-label="GEB Club"><canvas aria-hidden="true"></canvas></a>
+  <a href="/history">History</a>
+  <a href="/voting">How we vote</a>
+  <a href="/members/">Members</a>
+</nav></header>
+<main class="wide" id="main"><p class="muted">Loading…</p></main>
+<div class="tip" id="tip" role="tooltip" hidden></div>
+<script type="module">
+import { api, el, tierView, thumb, fmt } from './app.js';
+import { RANKED, bookStats, agreement } from './tierstats.js';
+
+const main = document.getElementById('main');
+const { books, members, entries } = await api('/api/tiers');
+const nameOf = Object.fromEntries(members.map((m) => [m.id, m.first_name || m.name]));
+const stats = bookStats(books, entries);
+const ranked = stats.filter((s) => s.readers);
+const pct = (x) => `${Math.round(x * 100)}%`;
+const listNames = (ids) => ids.map((id) => nameOf[id]).join(', ');
+
+// ---------------------------------------------------------------- tooltip
+const tip = document.getElementById('tip');
+const showTip = (target, x, y) => {
+  tip.textContent = target.dataset.tip; tip.hidden = false;
+  const r = tip.getBoundingClientRect();
+  tip.style.left = `${Math.min(innerWidth - r.width - 8, Math.max(8, x - r.width / 2))}px`;
+  tip.style.top = `${y - r.height - 12 < 8 ? y + 18 : y - r.height - 12}px`;
+};
+addEventListener('pointermove', (e) => { const t = e.target.closest?.('[data-tip]'); if (t) showTip(t, e.clientX, e.clientY); else tip.hidden = true; });
+addEventListener('focusin', (e) => { const t = e.target.closest?.('[data-tip]'); if (!t) return; const r = t.getBoundingClientRect(); showTip(t, r.left + r.width / 2, r.top); });
+addEventListener('focusout', () => (tip.hidden = true));
+addEventListener('scroll', () => (tip.hidden = true), { passive: true });
+
+// One bar: a segment per tier, as wide as the number of readers who put it there.
+const maxReaders = Math.max(1, ...stats.map((s) => s.readers));
+function dist(s) {
+  return el('div.dist', { style: `width:${(100 * s.readers) / maxReaders}%`, role: 'img', 'aria-label': RANKED.filter((t) => s.counts[t]).map((t) => `${t}: ${s.counts[t]}`).join(', ') },
+    RANKED.filter((t) => s.counts[t]).map((t) => el('span', {
+      style: `flex-grow:${s.counts[t]}; background: var(--t-${t})`, tabIndex: 0,
+      'data-tip': `${t}: ${listNames(s.who[t])}`,
+    })));
+}
+const legend = () => el('div.legend', RANKED.map((t) => el('span', el('i', { style: `background: var(--t-${t})` }), t)), el('span', '· bar length = readers'));
+
+// ---------------------------------------------------------------- consensus
+const consensus = Object.fromEntries([...RANKED, 'N'].map((t) => [t, []]));
+for (const s of [...ranked].sort((a, b) => b.mean - a.mean)) consensus[s.tier].push({ book_id: s.book.id, title: s.book.title, author: s.book.author, cover_url: s.book.cover_url });
+for (const s of stats.filter((s) => !s.readers)) consensus.N.push({ book_id: s.book.id, title: s.book.title, cover_url: s.book.cover_url });
+
+// ---------------------------------------------------------------- divisive
+const divisive = ranked.filter((s) => s.readers >= 3).sort((a, b) => b.spread - a.spread).slice(0, 3);
+
+// ---------------------------------------------------------------- table
+let sortKey = 'mean', sortDir = -1;
+const table = el('table.books');
+const keys = { position: (s) => s.book.position, mean: (s) => s.mean ?? -1, spread: (s) => s.spread ?? -1, readers: (s) => s.readers };
+function renderTable() {
+  const head = (key, label, cls = '') => el(`th${cls}`, { 'aria-sort': sortKey === key ? (sortDir < 0 ? 'descending' : 'ascending') : null },
+    el('button', { type: 'button', onclick: () => { sortDir = sortKey === key ? -sortDir : key === 'position' ? 1 : -1; sortKey = key; renderTable(); } }, label));
+  const rows = [...stats].sort((a, b) => sortDir * (keys[sortKey](a) - keys[sortKey](b)) || a.book.position - b.book.position);
+  table.replaceChildren(
+    el('tr', head('position', '#', '.num.hide-sm'), el('th', 'Book'), el('th', ''), el('th.dist-cell', 'Tiers'), head('mean', 'Avg', '.num'), head('spread', 'Spread', '.num.hide-sm'), head('readers', 'Read', '.num')),
+    ...rows.map((s) => el('tr',
+      el('td.num.muted.hide-sm', String(s.book.position)),
+      el('td', el('div.book', { style: 'align-items:center' }, thumb(s.book.cover_url), el('a', { href: `/members/book?id=${s.book.id}` }, el('cite', s.book.title)))),
+      el('td', s.tier ? el('span.tierchip', { title: `Club tier ${s.tier}` }, s.tier) : ''),
+      el('td.dist-cell', s.readers ? dist(s) : el('span.muted.small', 'nobody ranked it')),
+      el('td.num', s.mean == null ? '–' : fmt(s.mean, 1)),
+      el('td.num.hide-sm', s.spread == null ? '–' : fmt(s.spread, 1)),
+      el('td.num', { 'data-tip': s.counts.N ? `Didn't read: ${listNames(s.who.N)}` : null }, `${s.readers}${s.counts.N ? ` / ${s.readers + s.counts.N}` : ''}`))));
+}
+renderTable();
+
+// ---------------------------------------------------------------- taste twins
+const ag = agreement(entries);
+const ids = ag.ids.filter((id) => ag.ids.some((o) => o !== id && ag.get(id, o).agreement != null)).sort((a, b) => nameOf[a].localeCompare(nameOf[b]));
+const pairs = [];
+for (let i = 0; i < ids.length; i++) for (let j = i + 1; j < ids.length; j++) { const r = ag.get(ids[i], ids[j]); if (r.agreement != null) pairs.push({ a: ids[i], b: ids[j], ...r }); }
+pairs.sort((x, y) => y.agreement - x.agreement);
+// color scale runs from 50% (light) to 100% (full accent); below 50% stays at the lightest step
+const shade = (a) => `color-mix(in oklab, var(--accent) ${Math.round(8 + 92 * Math.max(0, Math.min(1, (a - 0.5) / 0.5)))}%, var(--card))`;
+const twins = el('div.twins', { style: `grid-template-columns: minmax(4rem, 7rem) repeat(${ids.length}, minmax(1.6rem, 3rem))`, role: 'table', 'aria-label': 'How much each pair of members agrees' },
+  el('div'), ids.map((id) => el('div.hd.col', { role: 'columnheader' }, nameOf[id])),
+  ids.map((r) => [el('div.hd', { role: 'rowheader' }, nameOf[r]), ids.map((c) => {
+    if (r === c) return el('div.cell.self', { role: 'cell' });
+    const x = ag.get(r, c);
+    if (x.agreement == null) return el('div.cell.none', { role: 'cell', 'data-tip': `${nameOf[r]} and ${nameOf[c]} have ranked only ${x.shared} of the same books`, tabIndex: 0 }, '·');
+    const strong = x.agreement >= 0.78;
+    return el('div.cell', { role: 'cell', tabIndex: 0, style: `background:${shade(x.agreement)}; color: var(--${strong ? 'paper' : 'ink'})`,
+      'data-tip': `${nameOf[r]} and ${nameOf[c]}: ${pct(x.agreement)} agreement over ${x.shared} books` }, Math.round(x.agreement * 100));
+  })]));
+
+// ---------------------------------------------------------------- page
+const nRankers = new Set(entries.filter((e) => e.tier !== 'N').map((e) => e.member_id)).size;
+main.replaceChildren(...[
+  el('h1', 'Club tier list'),
+  el('p.muted', `Average of ${nRankers} tier list${nRankers === 1 ? '' : 's'} (S = 5, F = 0). `, el('a', { href: '/members/me' }, 'Edit yours')),
+  tierView(consensus),
+
+  divisive.length ? [
+    el('h2', 'Most divisive'),
+    el('p.muted.small', 'Largest spread of scores, 3+ readers.'),
+    legend(),
+    el('div.divisive', divisive.map((s) => el('div.card',
+      s.book.cover_url ? el('img', { src: s.book.cover_url, alt: '' }) : el('div.noimg'),
+      el('div.meta',
+        el('a', { href: `/members/book?id=${s.book.id}` }, el('cite', s.book.title)),
+        dist(s),
+        el('div.why', `Spread ${fmt(s.spread, 1)} · ${s.readers} readers`))))),
+  ] : '',
+
+  pairs.length ? [
+    el('h2', 'Agreement'),
+    el('p.muted.small', '100 = same tier on every book both ranked. Needs 3+ shared books.'),
+    el('p', 'Most: ', el('strong', `${nameOf[pairs[0].a]} & ${nameOf[pairs[0].b]}`), ` (${pct(pairs[0].agreement)})`,
+      pairs.length > 1 ? [' · Least: ', el('strong', `${nameOf[pairs.at(-1).a]} & ${nameOf[pairs.at(-1).b]}`), ` (${pct(pairs.at(-1).agreement)})`] : ''),
+    el('div.table-wrap', twins),
+    el('div.scale', el('span', '50 or less'), el('span.bar'), el('span', '100')),
+  ] : '',
+
+  el('h2', 'All books'),
+  legend(),
+  el('div.table-wrap', table),
+].flat(Infinity).filter((n) => n != null && n !== ''));
+</script>
+<script src="/nav.js" defer></script>
+</body>
+</html>

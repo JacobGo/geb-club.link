@@ -1,4 +1,6 @@
 -- GEB club schema (Cloudflare D1 / SQLite)
+DROP TABLE IF EXISTS book_tags;
+DROP TABLE IF EXISTS tags;
 DROP TABLE IF EXISTS cover_cache;
 DROP TABLE IF EXISTS debt_seeds;
 DROP TABLE IF EXISTS tier_entries;
@@ -112,4 +114,20 @@ CREATE TABLE cover_cache (
   content_type TEXT NOT NULL,
   data BLOB NOT NULL,
   fetched_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- tags members add to books read (seeded from db/tags.sql)
+CREATE TABLE tags (
+  id INTEGER PRIMARY KEY,
+  name TEXT NOT NULL UNIQUE COLLATE NOCASE,
+  created_by INTEGER REFERENCES members(id) ON DELETE SET NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE book_tags (
+  book_id INTEGER NOT NULL REFERENCES books_read(id) ON DELETE CASCADE,
+  tag_id INTEGER NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
+  tagged_by INTEGER REFERENCES members(id) ON DELETE SET NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (book_id, tag_id)
 );

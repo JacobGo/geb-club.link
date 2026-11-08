@@ -7,13 +7,19 @@ import { cpSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } fr
 import { join } from 'node:path';
 
 const SRC = 'public', OUT = 'dist';
-const STAMPED = ['/style.css', '/favicon.svg', '/nav.js'];
+// In dependency order: a script's own links are stamped before its hash is taken.
+const STAMPED = ['/style.css', '/favicon.svg', '/triplet.js', '/palette.js', '/nav.js'];
 
 rmSync(OUT, { recursive: true, force: true });
 cpSync(SRC, OUT, { recursive: true });
 
-const version = Object.fromEntries(STAMPED.map((p) =>
-  [p, createHash('sha256').update(readFileSync(join(SRC, p))).digest('hex').slice(0, 8)]));
+const version = {};
+const stamp = (text) => Object.entries(version).reduce((t, [asset, v]) => t.replaceAll(`"${asset}"`, `"${asset}?v=${v}"`), text);
+for (const p of STAMPED) {
+  let body = readFileSync(join(OUT, p));
+  if (p.endsWith('.js')) { body = stamp(body.toString('utf8')); writeFileSync(join(OUT, p), body); }
+  version[p] = createHash('sha256').update(body).digest('hex').slice(0, 8);
+}
 
 const walk = (dir) => readdirSync(dir).flatMap((f) => {
   const p = join(dir, f);
@@ -22,9 +28,7 @@ const walk = (dir) => readdirSync(dir).flatMap((f) => {
 
 let n = 0;
 for (const file of walk(OUT).filter((f) => f.endsWith('.html'))) {
-  let html = readFileSync(file, 'utf8');
-  for (const [asset, v] of Object.entries(version)) html = html.replaceAll(`"${asset}"`, `"${asset}?v=${v}"`);
-  writeFileSync(file, html);
+  writeFileSync(file, stamp(readFileSync(file, 'utf8')));
   n++;
 }
 console.log(`built ${OUT}/: stamped ${n} pages`, version);

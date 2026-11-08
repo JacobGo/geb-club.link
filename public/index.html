@@ -59,6 +59,16 @@
   .ring-book:focus-visible .face.front img { outline: 2px solid var(--accent); outline-offset: 3px; }
   .ring-book .blank { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; padding: .5rem; font-size: .75rem; font-style: italic; color: var(--muted); background: var(--rule); border-radius: 3px; }
 
+  /* color shelf: one column of cover colors per book, standing on a plank */
+  .colors { display: flex; gap: 3px; align-items: flex-end; height: 64px; width: min(100%, 640px); margin: -.5rem auto 0; padding: 0 6px; position: relative; z-index: 3;
+    border-bottom: 5px solid var(--rule); border-radius: 0 0 3px 3px; }
+  .colors .col { flex: 1; height: 48px; display: flex; flex-direction: column; padding: 0; border: 0; border-radius: 2px 2px 0 0; overflow: hidden; cursor: pointer; background: var(--rule);
+    transition: transform .35s cubic-bezier(.2,.7,.2,1), box-shadow .35s; }
+  .colors .col span { display: block; min-height: 2px; }
+  .colors .col:hover { transform: translateY(-3px); }
+  .colors .col.on { transform: translateY(-12px); box-shadow: 0 8px 10px -6px rgba(0,0,0,.45); }
+  .colors .col:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  @media (prefers-reduced-motion: reduce) { .colors .col { transition: none; } }
   .count { color: var(--muted); font-size: .95rem; margin-top: .5rem; }
   .count a { color: inherit; }
 
@@ -68,7 +78,7 @@
 </head>
 <body>
 <header class="site"><nav>
-  <a class="brand" href="/">GEB Club</a>
+  <a class="brand" href="/" aria-label="GEB Club"><canvas aria-hidden="true"></canvas></a>
   <a href="/history">History</a>
   <a href="/voting">How we vote</a>
   <a href="/members/">Members</a>
@@ -85,6 +95,7 @@
     <div class="floor"></div>
     <div class="ring" id="ring"></div>
   </div>
+  <div class="colors" id="colors"></div>
   <p class="count" id="count"></p>
 </main>
 <script>
@@ -183,7 +194,7 @@ function fitName() {
   }
 }
 addEventListener('resize', fitName);
-showName(NAMES[0]);
+showName(nameFor(1));
 
 // The ring turns slowly on its own; drag or swipe to spin it (with momentum).
 // The book at the front decides the club name shown above. A real mouse hovering
@@ -193,8 +204,8 @@ function spinRing(stage, ring, count, onFront, onFrame) {
   const AUTO = reduce ? 0 : -4;          // degrees per second (negative = forward in time)
   const DRAG = 0.35;                      // degrees per pixel dragged
   const STEP = 360 / count;
-  let angle = -(count - 1) * STEP;        // start with the latest book at the front
-  // linger on the latest book for a few seconds after the page loads
+  let angle = 0;                          // start with GEB (the first book) at the front
+  // linger on it for a few seconds after the page loads
   let vel = 0, hovering = false, drag = null, target = null, holdUntil = performance.now() + 3000, front = -1, last = performance.now();
   const frontIndex = () => ((Math.round(-angle / STEP) % count) + count) % count;
   const tick = (now) => {
@@ -213,7 +224,7 @@ function spinRing(stage, ring, count, onFront, onFrame) {
     onFrame?.(angle, f);
     if (f !== front) {
       front = f; onFront(f);
-      // the page opens on the latest book; after that, the drift settles on GEB (the first book) each loop
+      // the drift settles on GEB (the first book) for a few seconds each loop
       if (f === 0 && !drag && target == null && Math.abs(vel) <= Math.abs(AUTO) + 0.5 && AUTO) {
         target = -Math.round(-angle / STEP) * STEP; holdUntil = now + 3000 + 400;
       }
@@ -259,6 +270,12 @@ function spinRing(stage, ring, count, onFront, onFrame) {
 
   // Turn to the next/previous book and stay there a few seconds.
   return {
+    // turn the shortest way to book i
+    to(i) {
+      const base = -i * STEP;
+      target = base + Math.round((angle - base) / 360) * 360;
+      holdUntil = performance.now() + 5000;
+    },
     step(d) {
       const base = target != null ? target : -Math.round(-angle / STEP) * STEP;
       target = base - d * STEP;
@@ -321,7 +338,22 @@ fetch('/api/public/books').then(r => r.json()).then(books => {
       dots[k].style.display = isNew ? '' : 'none';
     });
   };
-  const spin = spinRing(stage, ring, n, (i) => showName(nameFor(books[i].position), books[i]), drawLinks);
+  let frontNow = 0;
+  const spin = spinRing(stage, ring, n, (i) => {
+    frontNow = i;
+    showName(nameFor(books[i].position), books[i]);
+    shelf.querySelectorAll('.col').forEach((c, k) => c.classList.toggle('on', k === i));
+  }, drawLinks);
+
+  // the color shelf: each cover's main colors, in reading order; the book at the front rises
+  const shelf = document.getElementById('colors');
+  import("/palette.js").then(({ coverPalettes }) => coverPalettes(books.map((b) => b.cover_url))).then((pals) => {
+    shelf.replaceChildren(...books.map((b, i) => {
+      const col = make('button', { type: 'button', className: `col${i === frontNow ? ' on' : ''}`, title: b.title, ariaLabel: b.title, onclick: () => spin.to(i) },
+        ...(pals[i] ?? [{ rgb: [190, 184, 172], share: 1 }]).map((p) => make('span', { style: `flex: ${p.share}; background: rgb(${p.rgb.join(',')})` })));
+      return col;
+    }));
+  }).catch(() => {});
   document.getElementById('older').onclick = () => spin.step(-1);
   document.getElementById('newer').onclick = () => spin.step(1);
   // scroll wheel / swipe on the title also turn the ring, one book at a time

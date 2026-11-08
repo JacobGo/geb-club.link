@@ -34,8 +34,12 @@ npm test
 | `src/auth.js` | Club password cookie, member accounts, password hashing. |
 | `db/schema.sql` | Database schema. `db/migrations/` holds changes already applied to the live database. |
 | `db/book_media.sql` | Cover image source and StoryGraph link for each book read. Re-runnable. |
+| `db/tags.sql` | Starting tags for the books read (members add more on `/members/almanac`). |
+| `public/triplet.js` | The trip-let in the top bar: a block whose shadows spell G, E and B. |
+| `public/palette.js` | Main colors of each cover, for the home page shelf and the almanac. |
+| `public/data/almanac.json` | Open Library data for each book read. Re-fetch after adding a book: `node scripts/almanac.mjs`. |
 | `functions/covers/[id].js` | Serves covers from our own copy (D1 `cover_cache`), fetching from the source once. |
-| `test/` | Unit tests for the vote count. |
+| `test/` | Unit tests. |
 
 ## Changing the database
 

@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Almanac · GEB Club</title>
+<link rel="stylesheet" href="/style.css">
+<link rel="icon" href="/favicon.svg">
+<style>
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: .8rem; margin: 1rem 0 .5rem; }
+  .tile { border-top: 2px solid var(--accent); padding-top: .4rem; }
+  .tile .v { font-size: 1.7rem; font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1.1; }
+  .tile .k { color: var(--muted); font-size: .82rem; }
+
+  svg.chart { width: 100%; height: auto; display: block; overflow: visible; }
+  svg.chart .grid { stroke: var(--rule); stroke-width: 1; }
+  svg.chart .axis { fill: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+  svg.chart .lbl { fill: var(--ink); font-size: 11px; }
+  svg.chart image, svg.chart rect.mark { cursor: pointer; }
+  svg.chart .ring { fill: none; stroke: var(--paper); stroke-width: 2; }
+
+  /* the stack: thickness is page count */
+  .stack { display: flex; flex-direction: column-reverse; align-items: center; margin: 1rem auto 0; padding-bottom: 6px; max-width: 360px; }
+  .stack .bk { height: var(--t); width: var(--w); background: var(--c); color: var(--tc); border-radius: 2px; margin-left: var(--x);
+    display: flex; align-items: center; justify-content: space-between; padding: 0 .5rem; font-size: clamp(.55rem, calc(var(--t) * .55), .78rem);
+    white-space: nowrap; overflow: hidden; box-shadow: inset 0 -1px 0 rgba(0,0,0,.25), inset 0 1px 0 rgba(255,255,255,.15); cursor: default; }
+  .stack .bk span:first-child { overflow: hidden; text-overflow: ellipsis; font-style: italic; }
+  .stack .bk span:last-child { opacity: .75; font-variant-numeric: tabular-nums; margin-left: .4rem; }
+  .stack-floor { height: 6px; max-width: 420px; margin: 0 auto; border-radius: 3px; background: var(--rule); }
+
+  /* themes: one row per theme, one column per book in reading order */
+  .themes { display: grid; gap: 3px 2px; align-items: center; font-size: .85rem; }
+  .themes .t { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: .5rem; }
+  .themes .n { color: var(--muted); font-variant-numeric: tabular-nums; text-align: right; padding-left: .4rem; }
+  .themes .c { height: 16px; display: flex; align-items: center; justify-content: center; background: none; border: 0; padding: 0; border-radius: 3px; cursor: pointer; }
+  .themes .c:focus-visible { outline: 2px solid var(--accent); outline-offset: 0; }
+  .themes .x { background: none; border: 0; padding: 0; height: 16px; color: var(--muted); cursor: pointer; font-size: 1rem; line-height: 1; }
+  .themes .x:hover { color: #b3261e; }
+  .themes .c:hover i { outline: 1px solid var(--accent); outline-offset: 1px; }
+  .tag-form { margin-top: .8rem; display: flex; gap: .4rem; }
+  .tag-form input { width: 14rem; }
+  .themes .c i { width: 10px; height: 10px; border-radius: 50%; background: var(--accent); display: block; }
+  .themes .c.off i { width: 3px; height: 3px; background: var(--rule); }
+  .themes .h { font-size: .62rem; color: var(--muted); text-align: center; font-variant-numeric: tabular-nums; }
+  .themes .row-on { background: var(--accent-soft); }
+
+  /* palette: each book's cover colors, in reading order */
+  .palette { display: flex; gap: 2px; height: 120px; margin-top: .6rem; }
+  .palette .col { flex: 1; display: flex; flex-direction: column; gap: 0; border-radius: 3px; overflow: hidden; cursor: default; }
+  .palette .col div { width: 100%; }
+  .palette-axis { display: flex; justify-content: space-between; color: var(--muted); font-size: .72rem; margin-top: .2rem; }
+
+  /* which book? */
+  .quiz { margin-top: .6rem; }
+  .quiz blockquote { font-size: 1.25rem; font-style: italic; margin: .5rem 0 1rem; line-height: 1.45; border-left: 3px solid var(--accent); padding-left: 1rem; }
+  .quiz .opts { display: flex; gap: .7rem; flex-wrap: wrap; }
+  .quiz .opts button { background: none; padding: 0; border: 2px solid transparent; border-radius: 4px; width: 74px; }
+  .quiz .opts button img { width: 100%; aspect-ratio: 2/3; object-fit: cover; display: block; border-radius: 2px; }
+  .quiz .opts button.right { border-color: var(--good); }
+  .quiz .opts button.wrong { border-color: #b3261e; opacity: .6; }
+  .quiz .fb { min-height: 1.5rem; margin: .6rem 0; }
+
+  .tip { position: fixed; z-index: 50; pointer-events: none; background: var(--ink); color: var(--paper); font-size: .82rem; line-height: 1.35; padding: .35rem .55rem; border-radius: 6px; max-width: 18rem; }
+  .tip[hidden] { display: none; }
+  .src { color: var(--muted); font-size: .78rem; margin-top: 2.5rem; }
+</style>
+</head>
+<body>
+<header class="site"><nav>
+  <a class="brand" href="/" aria-label="GEB Club"><canvas aria-hidden="true"></canvas></a>
+  <a href="/history">History</a>
+  <a href="/voting">How we vote</a>
+  <a href="/members/" aria-current="page">Members</a>
+</nav></header>
+<main class="wide" id="main">
+  <h1>Almanac</h1>
+  <div class="tiles" id="tiles"></div>
+
+  <h2>Written, then read</h2>
+  <div id="years"></div>
+
+  <h2>Tags</h2>
+  <div class="table-wrap" style="overflow-y: hidden"><div class="themes" id="themes"></div></div>
+  <form class="tag-form" id="tag-form"><input name="name" maxlength="40" aria-label="New tag" placeholder="New tag" required> <button>Add</button></form>
+  <p class="error small" id="tag-msg" role="alert"></p>
+
+  <h2>Colors</h2>
+  <div class="palette" id="palette"></div>
+  <div class="palette-axis"><span>Book 1</span><span id="palette-last"></span></div>
+
+  <h2>The stack</h2>
+  <p class="muted small" id="stack-cap"></p>
+  <div class="stack" id="stack"></div><div class="stack-floor"></div>
+
+  <h2>Which book?</h2>
+  <div class="quiz" id="quiz"></div>
+
+  <p class="src" id="src"></p>
+</main>
+<div class="tip" id="tip" role="tooltip" hidden></div>
+<script type="module">
+import { api, getMe } from './app.js';
+import { coverPalettes } from "/palette.js";
+
+const $ = (id) => document.getElementById(id);
+const make = (tag, { dataset, ...props } = {}, ...kids) => { const n = Object.assign(document.createElement(tag), props); Object.assign(n.dataset, dataset ?? {}); n.append(...kids.flat(Infinity).filter((k) => k != null && k !== false)); return n; };
+const NS = 'http://www.w3.org/2000/svg';
+const S = (tag, attrs = {}, parent) => { const n = document.createElementNS(NS, tag); for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v); parent?.append(n); return n; };
+const fmt = (n) => n.toLocaleString('en-US');
+
+const [{ books: ol, fetched }, covers] = await Promise.all([fetch('/data/almanac.json').then((r) => r.json()), fetch('/api/public/books').then((r) => r.json())]);
+const books = ol.map((b) => ({ ...b, cover: covers.find((c) => c.position === b.position)?.cover_url ?? null, sg: covers.find((c) => c.position === b.position)?.storygraph_url }));
+const N = books.length;
+
+// tooltip: anything with data-tip
+const tip = $('tip');
+addEventListener('pointermove', (e) => {
+  const t = e.target.closest?.('[data-tip]');
+  if (!t) { tip.hidden = true; return; }
+  tip.textContent = t.dataset.tip || t.getAttribute('data-tip'); tip.hidden = false;
+  const r = tip.getBoundingClientRect();
+  tip.style.left = `${Math.min(innerWidth - r.width - 8, Math.max(8, e.clientX - r.width / 2))}px`;
+  tip.style.top = `${e.clientY - r.height - 14 < 8 ? e.clientY + 18 : e.clientY - r.height - 14}px`;
+});
+addEventListener('scroll', () => (tip.hidden = true), { passive: true });
+
+// ---------------------------------------------------------------- tiles
+const pages = books.reduce((s, b) => s + (b.pages ?? 0), 0);
+const years = books.map((b) => b.year).filter(Boolean).sort((a, b) => a - b);
+const median = years[Math.floor(years.length / 2)];
+const mostEditions = [...books].sort((a, b) => (b.editions ?? 0) - (a.editions ?? 0))[0];
+const tile = (v, k) => make('div', { className: 'tile' }, make('div', { className: 'v' }, v), make('div', { className: 'k' }, k));
+$('tiles').append(
+  tile(fmt(pages), 'pages'),
+  tile(`${years[0]}–${years.at(-1)}`, 'written'),
+  tile(String(median), 'median year written'),
+  tile(fmt(mostEditions.editions), `editions of ${mostEditions.title}, the most`),
+);
+
+// ---------------------------------------------------------------- written vs read
+{
+  // most books are recent; anything older than 1960 sits in a band below a break in the axis
+  const W = 760, H = 360, L = 44, R = 12, T = 16, B = 34, BAND = 34;
+  const y0 = 1960, y1 = 2030;
+  const x = (pos) => L + ((pos - 1) / (N - 1)) * (W - L - R);
+  const y = (yr) => (yr < y0 ? H - B - BAND / 2 + 4 : T + (1 - (yr - y0) / (y1 - y0)) * (H - T - B - BAND));
+  const svg = S('svg', { viewBox: `0 0 ${W} ${H}`, class: 'chart', role: 'img', 'aria-label': 'Year each book was first published, in the order the club read them' });
+  for (let yr = y0; yr <= y1; yr += 10) {
+    S('line', { x1: L, x2: W - R, y1: y(yr), y2: y(yr), class: 'grid' }, svg);
+    S('text', { x: L - 8, y: y(yr) + 4, 'text-anchor': 'end', class: 'axis' }, svg).textContent = yr;
+  }
+  if (years[0] < y0) {
+    S('text', { x: L - 8, y: H - B - BAND / 2 + 8, 'text-anchor': 'end', class: 'axis' }, svg).textContent = 'older';
+    S('path', { d: `M${L - 4},${y(y0) + 8} l6,-4 M${L - 4},${y(y0) + 13} l6,-4`, stroke: 'var(--muted)', fill: 'none' }, svg);
+  }
+  [1, 5, 10, 15, 20, N].forEach((p) => { S('text', { x: x(p), y: H - 12, 'text-anchor': 'middle', class: 'axis' }, svg).textContent = p; });
+  S('text', { x: W - R, y: H, 'text-anchor': 'end', class: 'axis' }, svg).textContent = 'book number →';
+  const cw = 15, ch = 22;
+  for (const b of books.filter((b) => b.year)) {
+    const g = S('g', { 'data-tip': `${b.position}. ${b.title} · ${b.year}` }, svg);
+    if (b.cover) {
+      S('rect', { x: x(b.position) - cw / 2 - 1, y: y(b.year) - ch / 2 - 1, width: cw + 2, height: ch + 2, rx: 2, fill: 'var(--paper)' }, g);
+      S('image', { href: b.cover, x: x(b.position) - cw / 2, y: y(b.year) - ch / 2, width: cw, height: ch, preserveAspectRatio: 'xMidYMid slice' }, g);
+    } else S('rect', { class: 'mark', x: x(b.position) - cw / 2, y: y(b.year) - ch / 2, width: cw, height: ch, fill: 'var(--accent)' }, g);
+  }
+  // label only the oldest and newest
+  const oldest = books.find((b) => b.year === years[0]), newest = books.find((b) => b.year === years.at(-1));
+  for (const b of [oldest, newest]) {
+    S('text', { x: x(b.position) + (b.position > N / 2 ? -12 : 12), y: y(b.year) + 4, 'text-anchor': b.position > N / 2 ? 'end' : 'start', class: 'lbl', 'paint-order': 'stroke', stroke: 'var(--paper)', 'stroke-width': 4 }, svg).textContent = `${b.title}, ${b.year}`;
+  }
+  $('years').append(svg);
+}
+
+// ---------------------------------------------------------------- tags (members add them; click a dot to tag a book)
+{
+  const grid = $('themes'), form = $('tag-form'), msg = $('tag-msg');
+  const me = await getMe();
+  let data = await api('/api/tags');
+  const idOf = Object.fromEntries(covers.map((c) => [c.position, c.id]));
+  const draw = () => {
+    const on = new Map();  // `${tag}:${book}` -> who tagged it
+    for (const bt of data.book_tags) on.set(`${bt.tag_id}:${bt.book_id}`, bt.tagged_by_name ?? '');
+    const count = (t) => books.filter((b) => on.has(`${t.id}:${idOf[b.position]}`)).length;
+    const rows = data.tags.map((t) => ({ ...t, n: count(t) })).sort((a, b) => b.n - a.n || a.name.localeCompare(b.name));
+    grid.style.gridTemplateColumns = `minmax(7rem, 11rem) repeat(${N}, minmax(12px, 1fr)) 2rem 1.4rem`;
+    grid.replaceChildren(make('div'), ...books.map((b) => make('div', { className: 'h' }, b.position % 5 === 0 || b.position === 1 ? String(b.position) : '')), make('div'), make('div'));
+    for (const t of rows) {
+      const cells = [make('div', { className: 't' }, t.name),
+        ...books.map((b) => {
+          const key = `${t.id}:${idOf[b.position]}`, has = on.has(key), who = on.get(key);
+          const btn = make('button', { type: 'button', className: `c${has ? '' : ' off'}`, ariaPressed: String(has), ariaLabel: `${t.name}: ${b.title}`,
+            dataset: { tip: `${t.name}: ${b.title}${who ? ` (${who})` : ''}` } }, make('i'));
+          btn.onclick = () => toggle(t, b, has);
+          return btn;
+        }),
+        make('div', { className: 'n' }, String(t.n)),
+        make('button', { type: 'button', className: 'x', ariaLabel: `Delete ${t.name}`, dataset: { tip: `Delete ${t.name}` }, onclick: () => remove(t) }, '×')];
+      cells.forEach((c) => { c.onpointerenter = () => cells.forEach((x) => x.classList.add('row-on')); c.onpointerleave = () => cells.forEach((x) => x.classList.remove('row-on')); });
+      grid.append(...cells);
+    }
+  };
+  const signedIn = () => { if (me) return true; msg.textContent = 'Sign in to your account on the Members page to change tags.'; return false; };
+  const run = async (fn) => { msg.textContent = ''; try { data = await fn(); draw(); } catch (e) { msg.textContent = e.message; } };
+  const toggle = (t, b, has) => signedIn() && run(() => api(`/api/books/${idOf[b.position]}/tags/${t.id}`, { method: has ? 'DELETE' : 'PUT' }));
+  const remove = (t) => signedIn() && confirm(`Delete the tag "${t.name}" from every book?`) && run(() => api(`/api/tags/${t.id}`, { method: 'DELETE' }));
+  form.onsubmit = (e) => {
+    e.preventDefault();
+    if (!signedIn()) return;
+    const input = form.elements.name;
+    run(() => api('/api/tags', { method: 'POST', body: { name: input.value } })).then(() => { input.value = ''; });
+  };
+  draw();
+}
+
+// ---------------------------------------------------------------- colors (k-means on each cover)
+const pals = await coverPalettes(books.map((b) => b.cover));
+$('palette').append(...books.map((b, i) => make('div', { className: 'col', dataset: { tip: `${b.position}. ${b.title}` } },
+  (pals[i] ?? [{ rgb: [200, 200, 200], share: 1 }]).map((p) => make('div', { style: `height:${p.share * 100}%; background: rgb(${p.rgb.join(',')})` })))));
+$('palette-last').textContent = `Book ${N}`;
+
+// ---------------------------------------------------------------- the stack
+{
+  const H_PER_PAGE = 0.075; // px per page on screen
+  const hash = (s) => { let h = 2166136261; for (const ch of s) h = Math.imul(h ^ ch.charCodeAt(0), 16777619); return (h >>> 0) / 4294967296; };
+  const lum = ([r, g, b]) => (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+  $('stack').append(...books.map((b, i) => {
+    const main = pals[i]?.slice().sort((p, q) => q.share - p.share)[0]?.rgb ?? [150, 150, 150];
+    const el = make('div', { className: 'bk', dataset: { tip: `${b.position}. ${b.title} · ${b.pages ? fmt(b.pages) + ' pages' : 'pages unknown'}` } },
+      make('span', {}, b.title), make('span', {}, b.pages ? fmt(b.pages) : ''));
+    el.style.setProperty('--t', `${Math.max(9, (b.pages ?? 300) * H_PER_PAGE)}px`);
+    el.style.setProperty('--w', `${Math.round(230 + hash(b.title) * 90)}px`);
+    el.style.setProperty('--x', `${Math.round((hash(b.title + 'x') - 0.5) * 26)}px`);
+    el.style.setProperty('--c', `rgb(${main.join(',')})`);
+    el.style.setProperty('--tc', lum(main) > 0.55 ? '#1d1a16' : '#fbf6ec');
+    return el;
+  }));
+  // a sheet of paper is about 0.1 mm and holds 2 pages
+  $('stack-cap').textContent = `${fmt(pages)} pages, first book at the bottom. About ${Math.round(pages * 0.005)} cm tall as paper.`;
+}
+
+// ---------------------------------------------------------------- which book? (first sentence, or the description)
+{
+  const pool = books.filter((b) => (b.first_sentence || b.description) && b.cover);
+  const quiz = $('quiz');
+  const shuffle = (a) => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+  // Work through every clue before any repeats, across visits too.
+  const KEY = 'geb-quiz';
+  const saved = (() => { try { return JSON.parse(localStorage.getItem(KEY)) ?? {}; } catch { return {}; } })();
+  const valid = new Set(pool.map((b) => b.position));
+  let deck = (saved.deck ?? []).filter((p) => valid.has(p)), last = saved.last ?? null;
+  const save = () => { try { localStorage.setItem(KEY, JSON.stringify({ deck, last })); } catch {} };
+  const draw = () => {
+    if (!deck.length) {
+      deck = shuffle([...valid]);
+      if (deck.length > 1 && deck.at(-1) === last) [deck[0], deck[deck.length - 1]] = [deck.at(-1), deck[0]]; // no repeat across the reshuffle
+    }
+    last = deck.pop(); save();
+    return pool.find((b) => b.position === last);
+  };
+  let score = 0, asked = 0;
+  const ask = () => {
+    const right = draw();
+    const others = shuffle(books.filter((b) => b !== right && b.cover)).slice(0, 3);
+    const opts = shuffle([right, ...others]);
+    const fb = make('p', { className: 'fb', ariaLive: 'polite' });
+    let done = false;
+    quiz.replaceChildren(
+      make('p', { className: 'muted small' }, right.first_sentence ? 'First sentence' : 'From the description'),
+      make('blockquote', {}, right.first_sentence ?? right.description),
+      make('div', { className: 'opts' }, opts.map((b) => {
+        const btn = make('button', { type: 'button', ariaLabel: `Option ${opts.indexOf(b) + 1}` }, make('img', { src: b.cover, alt: '' }));
+        btn.onclick = () => {
+          if (done) return; done = true; asked++;
+          const ok = b === right; if (ok) score++;
+          btn.classList.add(ok ? 'right' : 'wrong');
+          [...quiz.querySelectorAll('.opts button')][opts.indexOf(right)].classList.add('right');
+          fb.textContent = `${ok ? 'Yes' : 'No'}: ${right.title}. ${score} of ${asked}.`;
+          fb.append(' ', make('button', { type: 'button', className: 'secondary', onclick: ask }, 'Next'));
+        };
+        return btn;
+      })),
+      fb);
+  };
+  if (pool.length) ask(); else quiz.append(make('p', { className: 'muted' }, 'No clues yet.'));
+}
+
+$('src').textContent = `Publication years, page counts, editions, first sentences and descriptions from Open Library (${fetched}).`;
+</script>
+<script src="/nav.js" defer></script>
+</body>
+</html>

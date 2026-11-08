@@ -19,3 +19,23 @@ fetch('/api/me', { credentials: 'same-origin' })
   .catch(() => {});
 
 addEventListener('geb:account', (e) => setMyPage(!!e.detail));
+
+// The brand is the trip-let: a block whose shadows spell G, E and B, turning slowly.
+const brand = document.querySelector('header.site .brand canvas');
+if (brand) import("/triplet.js").then((m) => m.mountTriplet(brand, { interactive: false, zoom: 1.1 })).catch(() => {});
+
+// A second row on the members pages.
+const SUB = [['/members/tiers', 'Club tier list'], ['/members/taste', 'Taste map'], ['/members/almanac', 'Almanac'], ['/members/gallery', 'Print gallery']];
+if (location.pathname.startsWith('/members')) {
+  const here = location.pathname.replace(/\.html$/, '');
+  const sub = document.createElement('nav');
+  sub.className = 'sub';
+  sub.setAttribute('aria-label', 'Members');
+  for (const [href, label] of SUB) {
+    const a = document.createElement('a');
+    a.href = href; a.textContent = label;
+    if (here === href) a.setAttribute('aria-current', 'page');
+    sub.append(a);
+  }
+  nav.after(sub);
+}

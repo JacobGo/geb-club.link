@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Print gallery · GEB Club</title>
+<link rel="stylesheet" href="/style.css">
+<link rel="icon" href="/favicon.svg">
+<style>
+  main.gal { max-width: 1100px; }
+  .view { position: relative; width: 100%; aspect-ratio: 16 / 10; max-height: 74vh; background: #111; border-radius: 10px; overflow: hidden; }
+  .view canvas { width: 100%; height: 100%; display: block; touch-action: none; cursor: grab; }
+  .view canvas:active { cursor: grabbing; }
+  .controls { display: flex; gap: .5rem; flex-wrap: wrap; align-items: center; margin: .7rem 0; color: var(--muted); font-size: .9rem; }
+  .controls button[aria-pressed="true"] { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .controls label { display: inline-flex; gap: .4rem; align-items: center; margin: 0; }
+  .err { color: #b3261e; }
+  video { display: none; }
+  @media (max-width: 640px) { .view { aspect-ratio: 3 / 4; } }
+</style>
+</head>
+<body>
+<header class="site"><nav>
+  <a class="brand" href="/" aria-label="GEB Club"><canvas aria-hidden="true"></canvas></a>
+  <a href="/history">History</a>
+  <a href="/voting">How we vote</a>
+  <a href="/members/">Members</a>
+</nav></header>
+<main class="gal">
+  <h1>Print gallery</h1>
+  <p class="muted">The transform from Escher's <cite>Print Gallery</cite> (worked out by de Smit and Lenstra), run per pixel on the GPU. The picture contains a turned, shrunken copy of itself.</p>
+  <div class="view"><canvas id="c" aria-label="An endlessly zooming, twisted picture"></canvas><video id="v" playsinline muted></video></div>
+  <div class="controls">
+    <button type="button" class="secondary" id="covers" aria-pressed="true">Covers</button>
+    <button type="button" class="secondary" id="camera" aria-pressed="false">Camera</button>
+    <button type="button" class="secondary" id="twist" aria-pressed="true">Twist</button>
+    <label>Zoom <input type="range" id="speed" min="-1" max="1" step="0.05" value="0.35"></label>
+    <span>Drag to move the center</span>
+    <span class="err" id="err" role="alert"></span>
+  </div>
+</main>
+<script type="module">
+const canvas = document.getElementById('c'), video = document.getElementById('v');
+const gl = canvas.getContext('webgl', { antialias: false, preserveDrawingBuffer: false });
+const err = document.getElementById('err');
+if (!gl) { err.textContent = 'WebGL is not available in this browser.'; throw new Error('no webgl'); }
+
+// ---------------------------------------------------------------- shader
+// z -> log z, turned by atan(ln s / 2π) and scaled by its cosine, so that one turn of the
+// angle lands exactly one nesting level deeper; then wrapped into one annulus r1..1.
+const frag = `
+precision highp float;
+uniform vec2 res, center;
+uniform float t, r1, twist;
+uniform sampler2D tex;
+const float PI = 3.14159265359;
+vec2 cmul(vec2 a, vec2 b) { return vec2(a.x * b.x - a.y * b.y, a.x * b.y + a.y * b.x); }
+vec2 cdiv(vec2 a, vec2 b) { float d = dot(b, b); return vec2(a.x * b.x + a.y * b.y, a.y * b.x - a.x * b.y) / d; }
+void main() {
+  vec2 z = (gl_FragCoord.xy - 0.5 * res) / (0.5 * min(res.x, res.y)) - center;
+  float L = log(1.0 / r1);
+  vec2 w = vec2(log(max(length(z), 1e-6)), atan(z.y, z.x));
+  float a = twist * atan(L / (2.0 * PI));
+  w = cdiv(w, vec2(cos(a), sin(a)) * cos(a));
+  w.x = mod(w.x - log(r1) - t, L) + log(r1);
+  vec2 p = exp(w.x) * vec2(cos(w.y), sin(w.y));
+  vec2 uv = p * 0.5 + 0.5;
+  gl_FragColor = texture2D(tex, vec2(uv.x, 1.0 - uv.y));
+}`;
+const vert = 'attribute vec2 p; void main() { gl_Position = vec4(p, 0.0, 1.0); }';
+const compile = (type, src) => {
+  const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s);
+  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s));
+  return s;
+};
+const prog = gl.createProgram();
+gl.attachShader(prog, compile(gl.VERTEX_SHADER, vert));
+gl.attachShader(prog, compile(gl.FRAGMENT_SHADER, frag));
+gl.linkProgram(prog);
+gl.useProgram(prog);
+gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+const loc = gl.getAttribLocation(prog, 'p');
+gl.enableVertexAttribArray(loc);
+gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+const U = Object.fromEntries(['res', 'center', 't', 'r1', 'twist', 'tex'].map((n) => [n, gl.getUniformLocation(prog, n)]));
+
+const tex = gl.createTexture();
+gl.bindTexture(gl.TEXTURE_2D, tex);
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+
+// ---------------------------------------------------------------- the picture
+// A square picture; only the ring between radius R1 and the edge is ever seen.
+// A dark frame around the edge becomes the band that spirals inward.
+const R1 = 0.28, SIZE = 1024;
+const pic = document.createElement('canvas'); pic.width = pic.height = SIZE;
+const g = pic.getContext('2d');
+function frame() {
+  g.save();
+  g.lineWidth = SIZE * 0.035; g.strokeStyle = '#2a1d14';
+  g.beginPath(); g.arc(SIZE / 2, SIZE / 2, SIZE / 2 - g.lineWidth / 2, 0, Math.PI * 2); g.stroke();
+  g.lineWidth = SIZE * 0.006; g.strokeStyle = '#c99a5b';
+  g.beginPath(); g.arc(SIZE / 2, SIZE / 2, SIZE / 2 - SIZE * 0.035, 0, Math.PI * 2); g.stroke();
+  g.restore();
+}
+const upload = () => { gl.bindTexture(gl.TEXTURE_2D, tex); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, pic); };
+
+let coverPic = null;
+async function drawCovers() {
+  const books = await fetch('/api/public/books').then((r) => r.json());
+  const imgs = await Promise.all(books.filter((b) => b.cover_url).map((b) => new Promise((ok) => {
+    const im = new Image(); im.onload = () => ok(im); im.onerror = () => ok(null); im.src = b.cover_url;
+  })));
+  const list = imgs.filter(Boolean);
+  g.fillStyle = '#efe7d8'; g.fillRect(0, 0, SIZE, SIZE);
+  // a wall of covers, hung in rows like a gallery
+  const cw = SIZE / 8, ch = cw * 1.5, gap = cw * 0.16;
+  let k = 0;
+  for (let y = -ch / 2, row = 0; y < SIZE; y += ch + gap, row++) {
+    for (let x = (row % 2 ? -cw / 2 : 0) + gap / 2; x < SIZE; x += cw + gap) {
+      const im = list[k++ % list.length];
+      g.fillStyle = 'rgba(0,0,0,.25)'; g.fillRect(x + 4, y + 6, cw, ch);
+      g.drawImage(im, x, y, cw, ch);
+    }
+  }
+  frame();
+  coverPic = g.getImageData(0, 0, SIZE, SIZE);
+  upload();
+}
+
+let stream = null;
+function drawVideo() {
+  const vw = video.videoWidth, vh = video.videoHeight, s = Math.min(vw, vh);
+  g.save();
+  g.translate(SIZE, 0); g.scale(-1, 1); // mirror, like a mirror
+  g.drawImage(video, (vw - s) / 2, (vh - s) / 2, s, s, 0, 0, SIZE, SIZE);
+  g.restore();
+  frame();
+  upload();
+}
+
+// ---------------------------------------------------------------- run
+let center = [0, 0], twist = 1, speed = 0.35, t = 0, last = performance.now();
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+function render(now) {
+  const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  if (!reduce) t += speed * dt;
+  const r = canvas.getBoundingClientRect(), dpr = Math.min(2, devicePixelRatio || 1);
+  const w = Math.round(r.width * dpr), h = Math.round(r.height * dpr);
+  if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; gl.viewport(0, 0, w, h); }
+  if (stream && video.readyState >= 2) drawVideo();
+  gl.uniform2f(U.res, w, h); gl.uniform2f(U.center, center[0], center[1]);
+  gl.uniform1f(U.t, t); gl.uniform1f(U.r1, R1); gl.uniform1f(U.twist, twist); gl.uniform1i(U.tex, 0);
+  gl.drawArrays(gl.TRIANGLES, 0, 3);
+  requestAnimationFrame(render);
+}
+
+// drag moves the vanishing point
+let drag = null;
+canvas.addEventListener('pointerdown', (e) => { drag = { x: e.clientX, y: e.clientY, c: center.slice() }; canvas.setPointerCapture(e.pointerId); });
+canvas.addEventListener('pointermove', (e) => {
+  if (!drag) return;
+  const r = canvas.getBoundingClientRect(), k = 2 / Math.min(r.width, r.height);
+  center = [drag.c[0] + (e.clientX - drag.x) * k, drag.c[1] - (e.clientY - drag.y) * k];
+});
+canvas.addEventListener('pointerup', () => { drag = null; });
+
+const press = (id, on) => document.getElementById(id).setAttribute('aria-pressed', String(on));
+document.getElementById('twist').onclick = () => { twist = twist ? 0 : 1; press('twist', !!twist); };
+document.getElementById('speed').oninput = (e) => { speed = Number(e.target.value); };
+document.getElementById('covers').onclick = () => {
+  stream?.getTracks().forEach((tr) => tr.stop()); stream = null;
+  if (coverPic) { g.putImageData(coverPic, 0, 0); upload(); }
+  press('covers', true); press('camera', false);
+};
+document.getElementById('camera').onclick = async () => {
+  err.textContent = '';
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: 1280 } }, audio: false });
+    video.srcObject = stream; await video.play();
+    press('covers', false); press('camera', true);
+  } catch (e) { err.textContent = 'Camera not available.'; }
+};
+
+await drawCovers();
+requestAnimationFrame(render);
+</script>
+<script src="/nav.js" defer></script>
+</body>
+</html>

@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Not found · GEB Club</title>
+<link rel="stylesheet" href="/style.css">
+<link rel="icon" href="/favicon.svg">
+<style>
+  /* A frame that holds a smaller, turned copy of itself, forever. Zooming in by exactly
+     two levels (the colors alternate) looks identical to where it started, so the zoom loops without a seam. */
+  .droste { --s: .7; --r: 8deg; width: min(100%, 460px); aspect-ratio: 3 / 2; margin: 1.5rem auto 1rem; position: relative; overflow: hidden;
+    border-radius: 10px; background: var(--card); box-shadow: 0 0 0 1px var(--rule); }
+  .zoom, .frame { position: absolute; inset: 0; transform-origin: 72% 74%; }
+  .zoom { animation: deeper 12s linear infinite; }
+  .frame { border: 2px solid var(--ink); border-radius: 6px; background: var(--paper); }
+  .frame .frame { transform: scale(var(--s)) rotate(var(--r)); }
+  .frame.alt { background: var(--card); }
+  .frame > b { position: absolute; left: 5%; top: 4.5%; font-size: 2.2rem; line-height: 1; letter-spacing: .02em; color: var(--accent); }
+  @keyframes deeper { to { transform: rotate(calc(-2 * var(--r))) scale(calc(1 / var(--s) / var(--s))); } }
+  @media (prefers-reduced-motion: reduce) { .zoom { animation: none; } }
+
+  .nf { text-align: center; }
+  .nf h1 { margin-top: .5rem; }
+  .nf code { font-size: .9em; background: var(--accent-soft); padding: .05rem .35rem; border-radius: 4px; word-break: break-all; }
+</style>
+</head>
+<body>
+<header class="site"><nav>
+  <a class="brand" href="/" aria-label="GEB Club"><canvas aria-hidden="true"></canvas></a>
+  <a href="/history">History</a>
+  <a href="/voting">How we vote</a>
+  <a href="/members/">Members</a>
+</nav></header>
+<main class="nf">
+  <div class="droste" aria-hidden="true"><div class="zoom" id="zoom"></div></div>
+  <h1>Page not found</h1>
+  <p class="muted"><code id="path"></code></p>
+  <p><a href="/">Home</a></p>
+</main>
+<script>
+  document.getElementById('path').textContent = location.pathname;
+  // fourteen frames deep is past the point where the next one is smaller than a pixel
+  let at = document.getElementById('zoom');
+  for (let i = 0; i < 14; i++) {
+    const f = document.createElement('div');
+    f.className = i % 2 ? 'frame alt' : 'frame';
+    f.innerHTML = '<b>404</b>';
+    at.appendChild(f);
+    at = f;
+  }
+</script>
+<script src="/nav.js" defer></script>
+</body>
+</html>
