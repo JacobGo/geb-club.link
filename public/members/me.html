@@ -115,76 +115,83 @@ async function wantSection() {
     search, el('details', el('summary.small', 'Add by hand'), manual), box];
 }
 
+// Goodreads-format CSV, for importing into StoryGraph. Only books on your tier list
+// (S-F) count as read; your want-to-read list goes on to-read.
 function exportSection(books) {
+  // Goodreads ratings are 1-5 (0 means unrated), so D and F both become 1
+  const TIER_RATING = { S: 5, A: 4, B: 3, C: 2, D: 1, F: 1 };
+  const HEADERS = [
+    'Book Id', 'Title', 'Author', 'Author l-f', 'Additional Authors',
+    'ISBN', 'ISBN13', 'My Rating', 'Average Rating', 'Publisher', 'Binding',
+    'Number of Pages', 'Year Published', 'Original Publication Year',
+    'Date Read', 'Date Added', 'Bookshelves', 'Bookshelves with positions',
+    'Exclusive Shelf', 'My Review', 'Spoiler', 'Private Notes', 'Read Count', 'Owned Copies',
+  ];
+  // yyyy/mm/dd; read dates are often just yyyy-mm
+  const grDate = (d) => {
+    const p = String(d ?? '').slice(0, 10).split('-');
+    return p.length === 3 ? p.join('/') : p.length === 2 ? `${p[0]}/${p[1]}/01` : '';
+  };
+  const today = grDate(new Date().toISOString());
+  const esc = (v) => {
+    const s = String(v ?? '');
+    return /[,"\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+
+  // Each entry: { key, label, row }. Built fresh each time, so tier changes made above count.
+  async function entries() {
+    const [{ tiers }, wantList] = await Promise.all([api(`/api/members/${me.id}`), api('/api/me/want-to-read')]);
+    const tierOf = {};
+    for (const [tier, list] of Object.entries(tiers)) for (const e of list) tierOf[e.book_id] = tier;
+    const out = [];
+    for (const book of books) {
+      const rating = TIER_RATING[tierOf[book.id]];
+      if (!rating) continue;  // not on your tier list, or didn't read
+      const read = grDate(book.read_date);
+      out.push({ key: `b${book.id}`, label: book.title, row: [
+        '', book.title, book.author || '', '', '', '', '',
+        rating, '', '', '', '', '', '',
+        read, read || today, 'read', 'read (#1)', 'read', '', '', '', 1, 0,
+      ] });
+    }
+    for (const book of wantList) {
+      out.push({ key: `w${book.id}`, label: `${book.title} (to read)`, row: [
+        '', book.title, book.author || '', '', '', '', '',
+        0, '', '', '', '', book.year || '', '',
+        '', grDate(book.added_at) || today, 'to-read', 'to-read (#1)', 'to-read', '', '', '', 0, 0,
+      ] });
+    }
+    return out;
+  }
+
+  // Books left out of the file (already on StoryGraph, say). All are in by default.
+  const skip = new Set();
+  const list = el('div.small');
+  const pick = el('details', el('summary.small', 'Choose books'), list);
+  pick.addEventListener('toggle', async () => {
+    if (!pick.open) return;
+    list.replaceChildren(el('p.muted', 'Loading…'));
+    try {
+      list.replaceChildren(...(await entries()).map((x) => {
+        const box = el('input', { type: 'checkbox', checked: !skip.has(x.key), onchange: () => (box.checked ? skip.delete(x.key) : skip.add(x.key)) });
+        return el('label', { style: 'display:block; margin:.15rem 0; color:inherit' }, box, ' ', x.label);
+      }));
+    } catch (err) { list.replaceChildren(el('p.error', err.message)); }
+  });
+
   const btn = el('button', { type: 'button' }, 'Download Goodreads CSV');
   const status = el('p.small.muted', { role: 'status' });
-
   btn.addEventListener('click', async () => {
     btn.disabled = true;
     status.textContent = 'Building…';
     try {
-      const [{ tiers }, wantList] = await Promise.all([
-        api(`/api/members/${me.id}`),
-        api('/api/me/want-to-read'),
-      ]);
-
-      // Goodreads ratings are 1-5 (0 means unrated), so D and F both become 1
-      const TIER_RATING = { S: 5, A: 4, B: 3, C: 2, D: 1, F: 1 };
-      const tierMap = {};
-      for (const [tier, entries] of Object.entries(tiers)) {
-        for (const e of entries) tierMap[e.book_id] = tier;
-      }
-
-      const grDate = (d) => {
-        if (!d) return '';
-        const p = d.split('-');
-        return p.length === 3 ? `${p[0]}/${p[1]}/${p[2]}` : `${p[0]}/${p[1]}/01`;
-      };
-
-      const esc = (v) => {
-        const s = String(v ?? '');
-        return /[,"\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-      };
-
-      const headers = [
-        'Book Id', 'Title', 'Author', 'Author l-f', 'Additional Authors',
-        'ISBN', 'ISBN13', 'My Rating', 'Average Rating', 'Publisher', 'Binding',
-        'Number of Pages', 'Year Published', 'Original Publication Year',
-        'Date Read', 'Date Added', 'Bookshelves', 'Bookshelves with positions',
-        'Exclusive Shelf', 'My Review', 'Spoiler', 'Private Notes', 'Read Count', 'Owned Copies',
-      ];
-      const rows = [headers];
-
-      for (const book of books) {
-        const tier = tierMap[book.id];
-        // only books on your tier list count as read (not "didn't read", not unranked)
-        const rating = TIER_RATING[tier];
-        if (!rating) continue;
-        const dateRead = grDate(book.read_date);
-        rows.push([
-          '', book.title, book.author || '', '', '', '', '',
-          rating, '', '', '', '', '', '',
-          dateRead, dateRead, 'read', 'read (#1)', 'read', '', '', '', 1, 0,
-        ]);
-      }
-
-      for (const book of wantList) {
-        rows.push([
-          '', book.title, book.author || '', '', '', '', '',
-          0, '', '', '', '', book.year || '', '',
-          '', '', 'to-read', 'to-read (#1)', 'to-read', '', '', '', 0, 0,
-        ]);
-      }
-
-      const csv = rows.map((r) => r.map(esc).join(',')).join('\n');
-      const a = el('a', {
-        href: URL.createObjectURL(new Blob([csv], { type: 'text/csv' })),
-        download: 'geb-club-goodreads.csv',
-      });
+      const rows = (await entries()).filter((x) => !skip.has(x.key)).map((x) => x.row);
+      const csv = [HEADERS, ...rows].map((r) => r.map(esc).join(',')).join('\n');
+      const a = el('a', { href: URL.createObjectURL(new Blob([csv], { type: 'text/csv' })), download: 'geb-club-goodreads.csv' });
       document.body.append(a);
       a.click();
       a.remove();
-      status.textContent = `Exported ${rows.length - 1} book${rows.length === 2 ? '' : 's'}.`;
+      status.textContent = `Exported ${rows.length} book${rows.length === 1 ? '' : 's'}.`;
     } catch (err) {
       status.textContent = err.message;
     } finally {
@@ -194,8 +201,10 @@ function exportSection(books) {
 
   return [
     el('h2', 'Export'),
-    el('p.muted.small', 'Download your club reads and want-to-read list in Goodreads CSV format, importable into ', el('a', { href: 'https://app.thestorygraph.com/import', target: '_blank', rel: 'noopener' }, 'StoryGraph'), '.'),
-    el('p', btn), status,
+    el('p.muted.small', 'Your ranked club books and want-to-read list as a Goodreads CSV, for ',
+      el('a', { href: 'https://app.thestorygraph.com/import', target: '_blank', rel: 'noopener' }, 'StoryGraph import'),
+      '. StoryGraph adds a second entry for books already there, so untick those.'),
+    pick, el('p', btn), status,
   ];
 }
 
