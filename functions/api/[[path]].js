@@ -309,7 +309,11 @@ route('PUT', '/api/books/:id/tags/:tag', async ({ db, me, params }) => {
 });
 
 route('DELETE', '/api/books/:id/tags/:tag', async ({ db, params }) => {
-  await db.prepare('DELETE FROM book_tags WHERE book_id = ? AND tag_id = ?').bind(params.id, params.tag).run();
+  // a tag left on no books goes away
+  await db.batch([
+    db.prepare('DELETE FROM book_tags WHERE book_id = ? AND tag_id = ?').bind(params.id, params.tag),
+    db.prepare('DELETE FROM tags WHERE id = ? AND NOT EXISTS (SELECT 1 FROM book_tags WHERE tag_id = ?)').bind(params.tag, params.tag),
+  ]);
   return json(await tagsAll(db));
 });
 

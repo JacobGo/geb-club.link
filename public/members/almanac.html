@@ -31,11 +31,8 @@
   /* themes: one row per theme, one column per book in reading order */
   .themes { display: grid; gap: 3px 2px; align-items: center; font-size: .85rem; }
   .themes .t { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: .5rem; }
-  .themes .n { color: var(--muted); font-variant-numeric: tabular-nums; text-align: right; padding-left: .4rem; }
   .themes .c { height: 16px; display: flex; align-items: center; justify-content: center; background: none; border: 0; padding: 0; border-radius: 3px; cursor: pointer; }
   .themes .c:focus-visible { outline: 2px solid var(--accent); outline-offset: 0; }
-  .themes .x { background: none; border: 0; padding: 0; height: 16px; color: var(--muted); cursor: pointer; font-size: 1rem; line-height: 1; }
-  .themes .x:hover { color: #b3261e; }
   .themes .c:hover i { outline: 1px solid var(--accent); outline-offset: 1px; }
   .tag-form { margin-top: .8rem; display: flex; gap: .4rem; }
   .tag-form input { width: 14rem; }
@@ -178,15 +175,18 @@ $('tiles').append(
   const me = await getMe();
   let data = await api('/api/tags');
   const idOf = Object.fromEntries(covers.map((c) => [c.position, c.id]));
+  // tags on fewer than two books are hidden, except ones added on this visit (so they can be filled in)
+  const added = new Set();
   const draw = () => {
     const on = new Map();  // `${tag}:${book}` -> who tagged it
     for (const bt of data.book_tags) on.set(`${bt.tag_id}:${bt.book_id}`, bt.tagged_by_name ?? '');
     const count = (t) => books.filter((b) => on.has(`${t.id}:${idOf[b.position]}`)).length;
-    const rows = data.tags.map((t) => ({ ...t, n: count(t) })).sort((a, b) => b.n - a.n || a.name.localeCompare(b.name));
-    grid.style.gridTemplateColumns = `minmax(7rem, 11rem) repeat(${N}, minmax(12px, 1fr)) 2rem 1.4rem`;
+    const rows = data.tags.map((t) => ({ ...t, n: count(t) })).filter((t) => t.n >= 2 || added.has(t.name.toLowerCase()))
+      .sort((a, b) => b.n - a.n || a.name.localeCompare(b.name));
+    grid.style.gridTemplateColumns = `minmax(7rem, 11rem) repeat(${N}, minmax(12px, 1fr))`;
     // a small cover over each book's column
     grid.replaceChildren(make('div'), ...books.map((b) => make('div', { className: 'h', dataset: { tip: `${b.position}. ${b.title}` } },
-      b.cover ? make('img', { src: b.cover, alt: b.title, loading: 'lazy' }) : make('span', {}, String(b.position)))), make('div'), make('div'));
+      b.cover ? make('img', { src: b.cover, alt: b.title, loading: 'lazy' }) : make('span', {}, String(b.position)))));
     for (const t of rows) {
       const cells = [make('div', { className: 't' }, t.name),
         ...books.map((b) => {
@@ -195,9 +195,7 @@ $('tiles').append(
             dataset: { tip: `${t.name}: ${b.title}${who ? ` (${who})` : ''}` } }, make('i'));
           btn.onclick = () => toggle(t, b, has);
           return btn;
-        }),
-        make('div', { className: 'n' }, String(t.n)),
-        make('button', { type: 'button', className: 'x', ariaLabel: `Delete ${t.name}`, dataset: { tip: `Delete ${t.name}` }, onclick: () => remove(t) }, '×')];
+        })];
       cells.forEach((c) => { c.onpointerenter = () => cells.forEach((x) => x.classList.add('row-on')); c.onpointerleave = () => cells.forEach((x) => x.classList.remove('row-on')); });
       grid.append(...cells);
     }
@@ -205,11 +203,11 @@ $('tiles').append(
   const signedIn = () => { if (me) return true; msg.textContent = 'Sign in to your account on the Members page to change tags.'; return false; };
   const run = async (fn) => { msg.textContent = ''; try { data = await fn(); draw(); } catch (e) { msg.textContent = e.message; } };
   const toggle = (t, b, has) => signedIn() && run(() => api(`/api/books/${idOf[b.position]}/tags/${t.id}`, { method: has ? 'DELETE' : 'PUT' }));
-  const remove = (t) => signedIn() && confirm(`Delete the tag "${t.name}" from every book?`) && run(() => api(`/api/tags/${t.id}`, { method: 'DELETE' }));
   form.onsubmit = (e) => {
     e.preventDefault();
     if (!signedIn()) return;
     const input = form.elements.name;
+    added.add(input.value.trim().replace(/\s+/g, ' ').toLowerCase());
     run(() => api('/api/tags', { method: 'POST', body: { name: input.value } })).then(() => { input.value = ''; });
   };
   draw();
