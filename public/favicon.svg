@@ -1,1 +1,11 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">📚</text></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- an isometric block: G on the left face, E on the right, B on top -->
+  <path d="M32 3 59 18.5 32 34 5 18.5Z" fill="#d9a06a"/>
+  <path d="M5 18.5 32 34v27L5 45.5Z" fill="#b06e3e"/>
+  <path d="M59 18.5 32 34v27l27-15.5Z" fill="#7a4524"/>
+  <g font-family="Georgia, 'Times New Roman', serif" font-weight="700" text-anchor="middle" fill="#fff8ec">
+    <text font-size="22" transform="matrix(1 .577 0 1 18.5 51)">G</text>
+    <text font-size="22" transform="matrix(1 -.577 0 1 45.5 51)">E</text>
+    <text font-size="19" transform="matrix(.866 -.5 .866 .5 37.5 22)">B</text>
+  </g>
+</svg>
